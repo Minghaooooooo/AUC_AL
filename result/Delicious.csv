@@ -1,0 +1,2 @@
+step,mse1,mse2,mse3,mse4,train_auc,train_auc2,train_auc3,train_auc3,macro_auc,macro_auc2,macro_auc3,macro_auc4,micro_auc,micro_auc2,micro_auc3,micro_auc4
+0,0.062674575
