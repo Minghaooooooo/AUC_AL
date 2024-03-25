@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from config import get_args
 from util import *
-from model import *
+from architecture import *
 
 from data import get_data
 
@@ -59,7 +59,7 @@ def train_sep_bm(model,
                         # print('labels',labels)
                         outputs = model(inputs)
                         # print('outputs',outputs)
-                        loss = criterion(y.float(), outputs, device=device_train)
+                        loss = criterion(y.float(), outputs, model, device=device_train)
 
                         if phase == "train":
                             loss.backward()

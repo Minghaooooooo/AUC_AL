@@ -7,6 +7,8 @@ def get_args():
                         help="Seed for the code")
     parser.add_argument('--data_name', type=str, default="Delicious",
                         help="Name of Dataset")
+    # parser.add_argument('--data_name', type=str, default="bibTex",
+    #                     help="Name of Dataset")
     parser.add_argument('--train', type=float, default=0.1,
                         help="train size")  # 0.01
     parser.add_argument('--pool', type=float, default=0.6,
@@ -26,7 +28,7 @@ def get_args():
     # optimizer settings
     parser.add_argument('--lr', type=float, default=1e-4, help="Learning rate")
     parser.add_argument('--wd', type=float, default=0, help="Weight decay")
-    parser.add_argument('--pretrain_epochs', type=int, default=200, help="Number of weights pretraining epochs")
+    parser.add_argument('--pretrain_epochs', type=int, default=50, help="Number of weights pretraining epochs")
 
     args = parser.parse_args()
     return args

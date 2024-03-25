@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-
+import torch.nn.functional as F
 from util import get_device
 
 
@@ -48,7 +48,7 @@ def pairwise_ranking_loss(y_true, y_pred):
     return loss
 
 
-def ml_nn_loss(y, outputs, device=None):
+def ml_nn_loss(y, outputs, model, device=None):
     if not device:
         device = get_device()
     y = y.to(device)
@@ -58,8 +58,8 @@ def ml_nn_loss(y, outputs, device=None):
     # Non Multilabel Loss:
     # non_mse = nn.BCELoss()  # Binary Cross-Entropy Loss
 
-    # loss = non_mse(outputs, y)
-    loss = pairwise_ranking_loss(y, outputs)
+    loss = non_mse(outputs, y)
+    # loss = pairwise_ranking_loss(y, outputs)
 
     # y_pairwise = y.view(-1)
     # outputs_pairwise = outputs.view(-1)
@@ -69,25 +69,49 @@ def ml_nn_loss(y, outputs, device=None):
     return loss
 
 
-import torch.nn.functional as F
-
-
 def ml_nn_loss1(y, outputs, device=None):
     if not device:
         device = get_device()
     y = y.to(device)
-
-    # Use MultiLabelSoftMarginLoss as the primary loss
-    non_mse = nn.MultiLabelSoftMarginLoss()
-    primary_loss = non_mse(outputs, y)
-
-    # Compute hinge loss as a surrogate loss
-    hinge_loss = F.relu(1 - outputs * y).mean()  # Assuming outputs are logits
-
-    # Combine the primary loss and surrogate loss
+    # non_mse = nn.MultiLabelSoftMarginLoss()
     alpha = 0.1  # You can adjust the weight of the surrogate loss
-    loss = primary_loss + alpha * hinge_loss
-
+    non_mse = nn.BCEWithLogitsLoss()  # Binary Cross-Entropy Loss
+    loss = non_mse(outputs, y)
     return loss
 
 
+def ml_nn_loss_regularization(y, outputs, model, device=None):
+    if not device:
+        device = get_device()
+    y = y.to(device)
+    # Define the original loss function
+    non_mse = nn.BCEWithLogitsLoss()  # Binary Cross-Entropy Loss
+    # Calculate the original loss
+    loss = non_mse(outputs, y)
+    # Add L2 regularization term
+    l2_regularization = torch.tensor(0., device=device)
+    for param in model.parameters():
+        l2_regularization += torch.norm(param, p=2) ** 2
+    weight_decay = 0.01
+    loss += 0.5 * weight_decay * l2_regularization
+    return loss
+
+
+def ml_nn_loss_surrogate_auc(y, outputs, model, device=None):
+    if not device:
+        device = get_device()
+
+    y = y.to(device)
+
+    # Calculate the Hinge loss
+    loss = F.hinge_embedding_loss(outputs, y.float(), margin=1.0)
+
+    # Add L2 regularization term
+    l2_regularization = torch.tensor(0., device=device)
+    for param in model.parameters():
+        l2_regularization += torch.norm(param, p=2) ** 2
+
+    weight_decay = 0.01
+    loss += 0.5 * weight_decay * l2_regularization
+
+    return loss
