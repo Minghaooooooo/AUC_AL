@@ -69,14 +69,33 @@ def ml_nn_loss(y, outputs, model, device=None):
     return loss
 
 
-def ml_nn_loss1(y, outputs, device=None):
+import torch
+import torch.nn as nn
+
+
+def ml_nn_loss2(targets, outputs, model, device=None):
+    if not device:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    targets = targets.to(device)
+    outputs = outputs.to(device)
+
+    # Apply sigmoid activation if not already applied in the model
+    if not isinstance(model, nn.Sequential) or not isinstance(model[-1], nn.Sigmoid):
+        outputs = torch.sigmoid(outputs)
+
+    soft_margin_loss = nn.MultiLabelSoftMarginLoss()
+    loss = soft_margin_loss(outputs, targets)
+    return loss
+
+
+def ml_nn_loss1(targets, outputs, model, device=None):
     if not device:
         device = get_device()
-    y = y.to(device)
-    # non_mse = nn.MultiLabelSoftMarginLoss()
+    targets = targets.to(device)
     alpha = 0.1  # You can adjust the weight of the surrogate loss
-    non_mse = nn.BCEWithLogitsLoss()  # Binary Cross-Entropy Loss
-    loss = non_mse(outputs, y)
+    # loss = nn.BCEWithLogitsLoss(outputs, y)  # Binary Cross-Entropy Loss
+    soft_margin_loss = nn.MultiLabelSoftMarginLoss()
+    loss = soft_margin_loss(outputs, targets)
     return loss
 
 
@@ -85,10 +104,9 @@ def ml_nn_loss_regularization(y, outputs, model, device=None):
         device = get_device()
     y = y.to(device)
     # Define the original loss function
-    non_mse = nn.BCEWithLogitsLoss()  # Binary Cross-Entropy Loss
-    # Calculate the original loss
-    loss = non_mse(outputs, y)
-    # Add L2 regularization term
+    # BCE_logits_loss = nn.BCEWithLogitsLoss()  # Binary Cross-Entropy Loss
+    soft_margin_loss = nn.MultiLabelSoftMarginLoss()
+    loss = soft_margin_loss(outputs, y)    # Add L2 regularization term
     l2_regularization = torch.tensor(0., device=device)
     for param in model.parameters():
         l2_regularization += torch.norm(param, p=2) ** 2

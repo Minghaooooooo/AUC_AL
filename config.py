@@ -9,17 +9,17 @@ def get_args():
                         help="Name of Dataset")
     # parser.add_argument('--data_name', type=str, default="bibTex",
     #                     help="Name of Dataset")
-    parser.add_argument('--train', type=float, default=0.1,
+    parser.add_argument('--train', type=float, default=0.7,
                         help="train size")  # 0.01
-    parser.add_argument('--pool', type=float, default=0.6,
+    parser.add_argument('--pool', type=float, default=0.2,
                         help="pool size")
-    parser.add_argument('--test', type=float, default=0.2,
+    parser.add_argument('--test', type=float, default=0.1,
                         help="test size")
 
     # model settings
-    parser.add_argument('--m_hidden', type= int, default=317, help="Number of nodes per hidden layer")
-    parser.add_argument('--m_embed', type= int, default=500, help="Number of features in embedding space")
-    parser.add_argument('--m_activation', type= str, default="softplus", help="Type of activation function used in model")
+    parser.add_argument('--m_hidden', type= int, default=1024, help="Number of nodes per hidden layer")
+    parser.add_argument('--m_embed', type= int, default=512, help="Number of features in embedding space")
+    parser.add_argument('--m_activation', type= str, default="relu", help="Type of activation function used in model")
     parser.add_argument('--m_drop_p', type= float, default=0.1, help="Dropout ratio")
 
     # dataloader setting

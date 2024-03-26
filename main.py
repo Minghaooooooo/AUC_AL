@@ -1,4 +1,5 @@
 import csv
+import os
 
 from torch import optim
 from torch.utils.data import DataLoader
@@ -13,6 +14,10 @@ from architecture import *
 from data import get_data
 
 args = get_args()
+
+check_path = './result/data.csv'
+if os.path.exists(check_path):
+    os.remove(check_path)
 
 fname = args.data_name
 fnamesub = fname + '.csv'
@@ -42,7 +47,7 @@ num_features = train_data.x.size(1)
 results = []
 
 # model 1
-bm_model = LinearNN(in_size=num_features, hidden_size=args.m_hidden, out_size=out_size, embed=args.m_embed,
+bm_model = LinearNN1(in_size=num_features, hidden_size=args.m_hidden, out_size=out_size, embed=args.m_embed,
                                drop_p=args.m_drop_p, activation=args.m_activation).to(device)
 
 # check total parameters of this model
@@ -51,7 +56,7 @@ print(" Number of Parameters: ", pytorch_total_params)
 
 optimizer = optim.Adam(bm_model.parameters(), lr=args.lr, weight_decay=args.wd)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=0)
-criterion = ml_nn_loss_regularization
+criterion = ml_nn_loss2
 model_opt, loss_opt = train_sep_bm(bm_model,
                                    dataloaders,
                                    criterion=criterion,
@@ -66,29 +71,29 @@ model_opt.eval()
 results += add_res(model_opt, test_data.get_xtest(), test_data.get_ytest(), device=device)
 
 # model 2
-bm_model = LinearNN(in_size=num_features, hidden_size=args.m_hidden, out_size=out_size, embed=args.m_embed,
-                               drop_p=args.m_drop_p, activation=args.m_activation).to(device)
-
-# check total parameters of this model
-pytorch_total_params = sum(p.numel() for p in bm_model.parameters())
-print(" Number of Parameters: ", pytorch_total_params)
-
-optimizer = optim.Adam(bm_model.parameters(), lr=args.lr, weight_decay=args.wd)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=0)
-criterion = ml_nn_loss_surrogate_auc
-
-model_opt, loss_opt = train_sep_bm(bm_model,
-                                   dataloaders,
-                                   criterion=criterion,
-                                   optimizer=optimizer,
-                                   scheduler=scheduler,
-                                   num_epochs=args.pretrain_epochs,
-                                   device_train=None,
-                                   num_l=num_labels,
-                                   fname=fname
-                                   )
-model_opt.eval()
-results += add_res(model_opt, test_data.get_xtest(), test_data.get_ytest(), device=device)
+# bm_model = LinearNN(in_size=num_features, hidden_size=args.m_hidden, out_size=out_size, embed=args.m_embed,
+#                                drop_p=args.m_drop_p, activation=args.m_activation).to(device)
+#
+# # check total parameters of this model
+# pytorch_total_params = sum(p.numel() for p in bm_model.parameters())
+# print(" Number of Parameters: ", pytorch_total_params)
+#
+# optimizer = optim.Adam(bm_model.parameters(), lr=args.lr, weight_decay=args.wd)
+# scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=0)
+# criterion = ml_nn_loss1
+#
+# model_opt, loss_opt = train_sep_bm(bm_model,
+#                                    dataloaders,
+#                                    criterion=criterion,
+#                                    optimizer=optimizer,
+#                                    scheduler=scheduler,
+#                                    num_epochs=args.pretrain_epochs,
+#                                    device_train=None,
+#                                    num_l=num_labels,
+#                                    fname=fname
+#                                    )
+# model_opt.eval()
+# results += add_res(model_opt, test_data.get_xtest(), test_data.get_ytest(), device=device)
 
 with open('./result/' + fnamesub, 'a') as f:
     writer_obj = csv.writer(f)

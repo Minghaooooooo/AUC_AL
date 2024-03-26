@@ -4,40 +4,76 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-
-# 定义一个简单的模型
-class SimpleModel(nn.Module):
-    def __init__(self):
-        super(SimpleModel, self).__init__()
-        self.fc = nn.Linear(10, 5)
-
-    def forward(self, x):
-        return torch.sigmoid(self.fc(x))
+import torch
+import torch.nn as nn
 
 
-# 定义训练数据和标签
-inputs = torch.randn(32, 10)  # 32个样本，每个样本有10个特征
-labels = torch.randint(0, 2, (32, 5)).float()  # 32个样本的标签，每个样本有5个类别
+class LinearNN(nn.Module):
+    def __init__(self, in_size=None, hidden_size=None, out_size=None, embed=None,
+                 drop_p=0.5, activation='relu'):
+        super(LinearNN, self).__init__()
+        self.hidden = hidden_size
+        self.embed = embed
+        self.in_size = in_size
+        self.out_size = out_size  # number of labels
+        self.drop_p = drop_p
+        self.activation = activation
 
-# 初始化模型、损失函数和优化器
-model = SimpleModel()
-criterion = nn.BCEWithLogitsLoss()  # 使用BCEWithLogitsLoss损失函数
-optimizer = optim.SGD(model.parameters(), lr=0.01)
+        # Encoder layers
+        self.encoder = nn.Sequential(
+            nn.Linear(in_size, hidden_size),
+            self.get_activation(),
+            nn.Linear(hidden_size, embed),
+        )
 
-# 进行训练
-for epoch in range(100):
-    optimizer.zero_grad()  # 清零梯度
+        # Decoder layers
+        self.decoder = nn.Sequential(
+            nn.Linear(embed, hidden_size),
+            self.get_activation(),
+            nn.Linear(hidden_size, hidden_size),
+            self.get_activation(),
+            nn.Linear(hidden_size, out_size),
+            nn.Sigmoid()  # Sigmoid for multi-label classification
+        )
 
+        self.dropout = nn.Dropout(p=self.drop_p)
+
+    def forward(self, data):
+        emb = self.encoder(data)
+        emb = self.dropout(emb)  # Apply dropout after encoding
+        output = self.decoder(emb)
+        return output
+
+    def get_activation(self):
+        if self.activation == 'relu':
+            return nn.ReLU()
+        elif self.activation == 'leakyrelu':
+            return nn.LeakyReLU()
+        elif self.activation == 'elu':
+            return nn.ELU()
+        else:
+            raise ValueError("Invalid activation function")
+
+
+# Example usage:
+# Define your model
+model = LinearNN(in_size=INPUT_SIZE, hidden_size=HIDDEN_SIZE, out_size=OUTPUT_SIZE, embed=30)
+
+# Define your loss function
+criterion = nn.BCELoss()  # Binary Cross-Entropy Loss for multi-label classification
+
+# Define your optimizer
+optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+
+# Training loop
+for epoch in range(NUM_EPOCHS):
+    # Forward pass
     outputs = model(inputs)
-    loss = criterion(outputs, labels)
 
-    loss.backward()  # 计算梯度
-    optimizer.step()  # 更新模型参数
+    # Compute loss
+    loss = criterion(outputs, targets)
 
-    print(f"Epoch {epoch + 1}, Loss: {loss.item()}")
-
-# 在测试时，关闭梯度追踪
-with torch.no_grad():
-    test_inputs = torch.randn(10, 10)  # 10个测试样本
-    test_outputs = model(test_inputs)
-    print("Test Outputs:", test_outputs)
+    # Backward pass and optimization
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
