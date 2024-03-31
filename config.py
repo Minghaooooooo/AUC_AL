@@ -9,7 +9,7 @@ def get_args():
                         help="Name of Dataset")
     # parser.add_argument('--data_name', type=str, default="bibTex",
     #                     help="Name of Dataset")
-    parser.add_argument('--train', type=float, default=0.7,
+    parser.add_argument('--train', type=float, default=0.1,
                         help="train size")  # 0.01
     parser.add_argument('--pool', type=float, default=0.2,
                         help="pool size")
@@ -26,9 +26,10 @@ def get_args():
     parser.add_argument('--batch_size', type=int, default=64, help="Seed for the code")
 
     # optimizer settings
-    parser.add_argument('--lr', type=float, default=1e-4, help="Learning rate")
+    parser.add_argument('--lr', type=float, default=1e-4, help="Learning rate")  # 1e-4
     parser.add_argument('--wd', type=float, default=0, help="Weight decay")
     parser.add_argument('--pretrain_epochs', type=int, default=50, help="Number of weights pretraining epochs")
 
     args = parser.parse_args()
     return args
+

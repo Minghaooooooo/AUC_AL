@@ -1,5 +1,5 @@
 import torch
-from torch import nn
+from torch import nn, tensor
 import torch.nn.functional as F
 from util import get_device
 
@@ -69,8 +69,64 @@ def ml_nn_loss(y, outputs, model, device=None):
     return loss
 
 
-import torch
-import torch.nn as nn
+def get_auc_loss_u2(y, output, num_l, device=None):
+    if not device:
+        device = get_device()
+    y = y.to(device)
+
+    negative_elements_list = []
+    positive_elements_list = []
+    # use transposition for calculating every label.
+    # and fill negative_elements_list and positive_elements_list.
+    for row, mask_row in zip(output.t(), y.t()):
+        positive_elements = [float(element) for element, mask in zip(row, mask_row) if mask == 1]
+        positive_elements_list.append(positive_elements)
+        negative_elements = [float(element) for element, mask in zip(row, mask_row) if mask == 0]
+        negative_elements_list.append(negative_elements)
+
+    def custom_max(x):
+        return torch.max(torch.tensor(0), torch.tensor(1) - x)
+
+    def hinge_loss(y_true, y_pred):
+        return torch.max(torch.tensor(0.0), torch.tensor(1.0) - y_true * y_pred)
+
+    sum_auc = 0
+    for pos_list, neg_list in zip(positive_elements_list, negative_elements_list):
+        for pos in pos_list:
+            if len(pos_list) != 0:
+                sum_auc += hinge_loss(1, pos) / len(pos_list)
+        for neg in neg_list:
+            if len(neg_list) != 0:
+                sum_auc += hinge_loss(-1, -neg) / len(neg_list)
+    auc_loss = (sum_auc / num_l if num_l != 0 else torch.tensor(0.0)).clone().detach().requires_grad_(True)
+
+    return auc_loss
+
+
+class SurrogateAUCLoss(nn.Module):
+    def __init__(self):
+        super(SurrogateAUCLoss, self).__init__()
+
+    def forward(self, y_true, y_pred):
+        batch_size = y_true.size(0)
+        y_true = y_true.view(batch_size, -1)  # Reshaping the tensor to have a batch size and inferred second dimension
+        y_pred = y_pred.view(batch_size, -1)
+
+        pos_mask = (y_true == 1)
+        neg_mask = (y_true == 0)
+
+        pos_scores = y_pred[pos_mask]
+        neg_scores = y_pred[neg_mask]
+
+        # Reshaping pos_scores into a column vector and expanding to match neg_scores at second dim
+        pos_scores = pos_scores.view(-1, 1).expand(-1, neg_scores.size(0))
+        # Reshaping neg_scores into a row vector. copying the elements and expanding to match pos_scores at first dim
+        neg_scores = neg_scores.view(1, -1).expand(pos_scores.size(0), -1)
+
+        # The torch.mean() function calculates the mean value of all the elements in the tensor,
+        # regardless of its dimension.
+        hinge_loss = torch.mean(torch.clamp(1 - pos_scores + neg_scores, min=0))  # clamps all negative values to zero
+        return hinge_loss
 
 
 def ml_nn_loss2(targets, outputs, model, device=None):
@@ -82,9 +138,21 @@ def ml_nn_loss2(targets, outputs, model, device=None):
     # Apply sigmoid activation if not already applied in the model
     if not isinstance(model, nn.Sequential) or not isinstance(model[-1], nn.Sigmoid):
         outputs = torch.sigmoid(outputs)
+    # bce_logits_loss = nn.BCEWithLogitsLoss()  # Binary Cross-Entropy Loss
 
-    soft_margin_loss = nn.MultiLabelSoftMarginLoss()
-    loss = soft_margin_loss(outputs, targets)
+    # soft_margin_loss = nn.MultiLabelSoftMarginLoss()
+    # loss = soft_margin_loss(outputs, targets)
+
+    gpt_surrogate_auc_loss = SurrogateAUCLoss()
+    loss = gpt_surrogate_auc_loss(targets, outputs)
+
+
+
+    # label_length = targets.size(1)
+    # auc_loss = get_auc_loss_u2(targets, outputs, label_length, device)
+    # loss = auc_loss
+    # loss += 0.2*auc_loss
+
     return loss
 
 
@@ -94,6 +162,7 @@ def ml_nn_loss1(targets, outputs, model, device=None):
     targets = targets.to(device)
     alpha = 0.1  # You can adjust the weight of the surrogate loss
     # loss = nn.BCEWithLogitsLoss(outputs, y)  # Binary Cross-Entropy Loss
+
     soft_margin_loss = nn.MultiLabelSoftMarginLoss()
     loss = soft_margin_loss(outputs, targets)
     return loss
@@ -103,15 +172,19 @@ def ml_nn_loss_regularization(y, outputs, model, device=None):
     if not device:
         device = get_device()
     y = y.to(device)
-    # Define the original loss function
     # BCE_logits_loss = nn.BCEWithLogitsLoss()  # Binary Cross-Entropy Loss
+
+    # Apply sigmoid activation if not already applied in the model
+    if not isinstance(model, nn.Sequential) or not isinstance(model[-1], nn.Sigmoid):
+        outputs = torch.sigmoid(outputs)
+
     soft_margin_loss = nn.MultiLabelSoftMarginLoss()
-    loss = soft_margin_loss(outputs, y)    # Add L2 regularization term
+    loss = soft_margin_loss(outputs, y)  # Add L2 regularization term
     l2_regularization = torch.tensor(0., device=device)
     for param in model.parameters():
         l2_regularization += torch.norm(param, p=2) ** 2
     weight_decay = 0.01
-    loss += 0.5 * weight_decay * l2_regularization
+    loss += 0.01 * weight_decay * l2_regularization
     return loss
 
 

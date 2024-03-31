@@ -57,16 +57,17 @@ def train_sep_bm(model,
                         y = labels.to(device_train)
                         # print('inputs',inputs)
                         # print('labels',labels)
-                        outputs = model(inputs)
+                        # inputs = inputs.to(torch.int64).to(device_train)
+                        batch_outputs = model(inputs)
                         # print('outputs',outputs)
-                        loss = criterion(y.float(), outputs, model, device=device_train)
+                        loss = criterion(y.float(), batch_outputs, model, device=device_train)
 
                         if phase == "train":
                             loss.backward()
                             optimizer.step()
 
                     # statistics
-                    running_loss += loss.item() * inputs.size(0)
+                    running_loss += loss.item()  # * inputs.size(0)
                 # preds = predict(model,inputs)
                 # match = torch.reshape(torch.eq(preds, labels).float(), (-1, 1))
                 # acc = torch.mean(match)
@@ -76,7 +77,7 @@ def train_sep_bm(model,
                     if phase == "train":
                         scheduler.step()
 
-                epoch_loss = running_loss / len(dataloaders[phase].dataset)
+                epoch_loss = running_loss / len(dataloaders[phase]) # .dataset)
                 # epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
                 print('epoch loss', epoch_loss)
                 for name, param in model.named_parameters():

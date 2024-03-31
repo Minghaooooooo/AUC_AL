@@ -21,7 +21,7 @@ if os.path.exists(check_path):
 
 fname = args.data_name
 fnamesub = fname + '.csv'
-header = ['mse1', 'mse2', 'mse3', 'mse4']
+header = ['K@1', 'K@2', 'micro_AUC', 'macro_AUC']
 
 with open('./result/' + fnamesub, 'w') as f:
     writer_obj = csv.writer(f)
@@ -47,17 +47,22 @@ num_features = train_data.x.size(1)
 results = []
 
 # model 1
-bm_model = LinearNN1(in_size=num_features, hidden_size=args.m_hidden, out_size=out_size, embed=args.m_embed,
-                               drop_p=args.m_drop_p, activation=args.m_activation).to(device)
+# linear_model = LinearNN1(in_size=num_features, hidden_size=args.m_hidden, out_size=out_size, embed=args.m_embed,
+#                      drop_p=args.m_drop_p, activation=args.m_activation).to(device)
 
+# model 2
+linear_model = LinearNNWithSelfAttention(in_size=num_features, hidden_size=args.m_hidden, out_size=out_size, embed=args.m_embed,
+                     drop_p=args.m_drop_p, activation=args.m_activation, num_heads=8).to(device)
+
+train_model = linear_model
 # check total parameters of this model
-pytorch_total_params = sum(p.numel() for p in bm_model.parameters())
+pytorch_total_params = sum(p.numel() for p in train_model.parameters())
 print(" Number of Parameters: ", pytorch_total_params)
 
-optimizer = optim.Adam(bm_model.parameters(), lr=args.lr, weight_decay=args.wd)
+optimizer = optim.Adam(train_model.parameters(), lr=args.lr, weight_decay=args.wd)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=0)
 criterion = ml_nn_loss2
-model_opt, loss_opt = train_sep_bm(bm_model,
+model_opt, loss_opt = train_sep_bm(train_model,
                                    dataloaders,
                                    criterion=criterion,
                                    optimizer=optimizer,
@@ -69,7 +74,7 @@ model_opt, loss_opt = train_sep_bm(bm_model,
                                    )
 model_opt.eval()
 results += add_res(model_opt, test_data.get_xtest(), test_data.get_ytest(), device=device)
-
+print(results)
 # model 2
 # bm_model = LinearNN(in_size=num_features, hidden_size=args.m_hidden, out_size=out_size, embed=args.m_embed,
 #                                drop_p=args.m_drop_p, activation=args.m_activation).to(device)
@@ -107,5 +112,3 @@ with open('./result/' + fnamesub, 'a') as f:
     #                       ysum=False, \
     #                       xtest=xtest, ytest=ytest, \
     #                       x_train=x_train, y_train=y_train)
-
-

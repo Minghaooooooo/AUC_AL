@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from edl_pytorch import NormalInvGamma
+from torch.nn import TransformerEncoderLayer, TransformerEncoder
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print('Using {} device'.format(device))
@@ -33,8 +34,13 @@ class LinearNN1(nn.Module):
             self.get_activation(),
             nn.Linear(hidden_size, hidden_size),
             self.get_activation(),
+            nn.Linear(hidden_size, hidden_size),
+            self.get_activation(),
+            nn.Linear(hidden_size, hidden_size),
+            self.get_activation(),
             nn.Linear(hidden_size, out_size),
             nn.Softmax()
+            # nn.Softplus()
         )
 
         self.dropout = nn.Dropout(p=self.drop_p)
@@ -95,114 +101,120 @@ class LinearNN(nn.Module):
         return output
 
 
-class AttentionResidualNN(nn.Module):
+class SelfAttention(nn.Module):
+    def __init__(self, embed_size, heads):
+        super(SelfAttention, self).__init__()
+        self.embed_size = embed_size
+        self.heads = heads
+        self.head_dim = embed_size // heads
+
+        assert (
+            self.head_dim * heads == embed_size
+        ), "Embedding size needs to be divisible by heads"
+
+        self.values = nn.Linear(self.head_dim, self.head_dim, bias=False)
+        self.keys = nn.Linear(self.head_dim, self.head_dim, bias=False)
+        self.queries = nn.Linear(self.head_dim, self.head_dim, bias=False)
+        self.fc_out = nn.Linear(heads * self.head_dim, embed_size)
+        self.layer_norm = nn.LayerNorm(embed_size)
+
+    def forward(self, values, keys, query, mask):
+        N = query.shape[0]
+
+        # value_len, key_len, query_len = values.shape[1], keys.shape[1], query.shape[1]
+        #  input data consists of simple numerical features rather than sequential data (such as text or time series).
+        #  treat each sample as an independent data point without considering sequential properties.
+        value_len, key_len, query_len = 1, 1, 1,
+
+        # Split the embedding into self.heads different pieces, [batchsize, sequence_length, num_heads, head_dim]
+        values = values.reshape(N, value_len, self.heads, self.head_dim)
+        keys = keys.reshape(N, key_len, self.heads, self.head_dim)
+        queries = query.reshape(N, query_len, self.heads, self.head_dim)
+
+        values = self.values(values)  # (N, value_len, heads, head_dim)
+        keys = self.keys(keys)  # (N, key_len, heads, head_dim)
+        queries = self.queries(queries)  # (N, query_len, heads, heads_dim)
+
+        # Einsum does matrix mult. for query*keys for each N
+        energy = torch.einsum("nqhd,nkhd->nhqk", [queries, keys])  # (N, heads, query_len, key_len)
+
+        if mask is not None:
+            energy = energy.masked_fill(mask == 0, float("-1e20"))
+
+        # Normalize energy values similarly to seq2seq + attention
+        attention = torch.nn.functional.softmax(energy / (self.embed_size ** (1 / 2)), dim=3)  # (N, heads, query_len, key_len)
+
+        out = torch.einsum("nhql,nlhd->nqhd", [attention, values]).reshape(
+            N, self.heads * self.head_dim
+        )  # (N, (query_len,) heads, head_dim)
+
+        out = self.fc_out(out)
+
+        # Residual connection and layer normalization
+        # out += query
+        # out = self.layer_norm(out)
+        return out
+
+
+class LinearNNWithSelfAttention(nn.Module):
     def __init__(self, in_size=None, hidden_size=None, out_size=None, embed=None,
-                 drop_p=0.1, activation='softplus'):
-        super(AttentionResidualNN, self).__init__()
+                 drop_p=0.5, activation='relu', num_heads=8):
+        super(LinearNNWithSelfAttention, self).__init__()
         self.hidden = hidden_size
-        hidden = self.hidden
         self.embed = embed
         self.in_size = in_size
         self.out_size = out_size  # number of labels
         self.drop_p = drop_p
         self.activation = activation
+        self.num_heads = num_heads
 
-        if self.activation == 'softplus':
-            self.encoder = nn.Sequential(
-                nn.Linear(in_size, hidden),
-                nn.Softplus(),
-                nn.Linear(hidden, embed),
-            )
+        # Encoder layers
+        self.encoder = nn.Sequential(
+            nn.Linear(in_size, hidden_size),
+            self.get_activation(),
+            nn.Linear(hidden_size, embed),
+        )
 
-            self.attention_layer = nn.Linear(embed, 1)
+        # Self-attention layer
+        self.self_attention = SelfAttention(embed, num_heads)
 
-            self.ffn = nn.Sequential(
-                nn.Linear(embed, hidden),
-                nn.ReLU(),
-                nn.Linear(hidden, embed)
-            )
+        # Decoder layers
+        self.decoder = nn.Sequential(
+            nn.Linear(embed, hidden_size),
+            self.get_activation(),
+            nn.Linear(hidden_size, hidden_size),
+            self.get_activation(),
+            nn.Linear(hidden_size, out_size),
+            nn.Softmax(dim=-1)  # Softmax along the last dimension
+        )
 
-            self.dropout = nn.Dropout(p=self.drop_p)
+        self.dropout = nn.Dropout(p=self.drop_p)
 
-            self.decoder = nn.Sequential(
-                nn.Linear(embed, hidden),
-                nn.Softplus(),
-                nn.Linear(hidden, hidden),
-                nn.Softplus(),
-                nn.Linear(hidden, hidden),
-                nn.Softplus(),
-                nn.Linear(hidden, hidden),
-                nn.Softplus(),
-                nn.Dropout(p=self.drop_p),
-                nn.Linear(hidden, out_size),
-                nn.Softplus(),
-            )
-
-    def forward(self, data):
+    def forward(self, data, mask=None):
         emb = self.encoder(data)
+        emb = self.dropout(emb)  # Apply dropout after encoding
 
-        # Attention mechanism
-        attention_scores = F.softmax(self.attention_layer(emb), dim=1)
-        weighted_emb = torch.sum(attention_scores * emb, dim=1)
+        # Self-attention mechanism
+        self_attended = self.self_attention(emb, emb, emb, mask)
 
-        # Feedforward neural network (FFN) with residual connection
-        ffn_output = self.ffn(weighted_emb)
-        residual_emb = weighted_emb + ffn_output
-
-        # Dropout
-        residual_emb = self.dropout(residual_emb)
-
-        # Decoder
-        output = self.decoder(weighted_emb)
-
+        output = self.decoder(self_attended)
         return output
 
 
-class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_len=5000):
-        super(PositionalEncoding, self).__init__()
-        self.dropout = nn.Dropout(p=0.1)
+    def get_activation(self):
+        if self.activation == 'relu':
+            return nn.ReLU()
+        elif self.activation == 'leakyrelu':
+            return nn.LeakyReLU()
+        elif self.activation == 'elu':
+            return nn.ELU()
+        elif self.activation == 'softplus':
+            return nn.Softplus()
+        else:
+            raise ValueError("Invalid activation function")
 
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0).transpose(0, 1)
-        self.register_buffer('pe', pe)
-
-    def forward(self, x):
-        x = x + self.pe[:x.size(0), :]
-        return self.dropout(x)
-
-
-class TransformerModel(nn.Module):
-    def __init__(self, vocab_size, d_model, num_heads, num_encoder_layers, num_decoder_layers, dim_feedforward,
-                 dropout=0.1):
-        super(TransformerModel, self).__init__()
-        self.embedding = nn.Embedding(vocab_size, d_model)
-        self.pos_encoder = PositionalEncoding(d_model)
-        self.transformer = nn.Transformer(d_model=d_model,
-                                          nhead=num_heads,
-                                          num_encoder_layers=num_encoder_layers,
-                                          num_decoder_layers=num_decoder_layers,
-                                          dim_feedforward=dim_feedforward,
-                                          dropout=dropout)
-        self.fc = nn.Linear(d_model, vocab_size)
-
-        self.init_weights()
-
-    def init_weights(self):
-        init_range = 0.1
-        self.embedding.weight.data.uniform_(-init_range, init_range)
-        self.fc.bias.data.zero_()
-        self.fc.weight.data.uniform_(-init_range, init_range)
-
-    def forward(self, src, tgt):
-        src = self.embedding(src)
-        src = self.pos_encoder(src)
-        tgt = self.embedding(tgt)
-        tgt = self.pos_encoder(tgt)
-        output = self.transformer(src, tgt)
-        output = self.fc(output)
-        return output
+# Example usage:
+# model = LinearNNWithSelfAttention(in_size=100, hidden_size=64, out_size=10, embed=32)
+# input_data = torch.randn(32, 100)  # Example input data, batch size 32, input size 100
+# output = model(input_data)
+# print(output.shape)  # Should print torch.Size([32, 10]), indicating batch size 32, output size 10

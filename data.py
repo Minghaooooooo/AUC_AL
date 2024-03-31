@@ -116,9 +116,9 @@ def get_data():
 
     xtrain = torch.tensor(x[train_index])
     xtest = torch.tensor(x[test_index])
-    xcan = torch.tensor(x[candidate_index])
     ytrain = torch.tensor(y[train_index])
     ytest = torch.tensor(y[test_index])
+    xcan = torch.tensor(x[candidate_index])
     ycan = torch.tensor(y[candidate_index])
 
     train_data = MyDataset(xtrain.to(device),  ytrain.to(device))
@@ -155,5 +155,5 @@ def get_data():
 print(' dataset is called: ', args.data_name)
 features, labels = read_dataset(args.data_name)
 print(' features shape:', features.shape)
-print('training features shape:', labels.shape)
+print('labels shape:', labels.shape)
 
