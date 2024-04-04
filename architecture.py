@@ -2,12 +2,31 @@ import math
 
 import torch
 import torch.nn as nn
+import torchvision.models as models
 import torch.nn.functional as F
 from edl_pytorch import NormalInvGamma
 from torch.nn import TransformerEncoderLayer, TransformerEncoder
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print('Using {} device'.format(device))
+
+
+class ResNet18(nn.Module):
+    def __init__(self, in_size=None, hidden_size=None, out_size=None, embed=None,
+                 drop_p=0.5, activation=None):
+        super(ResNet18, self).__init__()
+        self.resnet = models.resnet18(pretrained=True)
+        self.fc1 = nn.Linear(in_size, 512)  # Adjust input size to match your data
+        self.fc2 = nn.Linear(512, out_size)
+        self.dropout = nn.Dropout(p=drop_p)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        x = self.fc1(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return x
 
 
 class LinearNN1(nn.Module):
@@ -39,8 +58,8 @@ class LinearNN1(nn.Module):
             nn.Linear(hidden_size, hidden_size),
             self.get_activation(),
             nn.Linear(hidden_size, out_size),
-            nn.Softmax()
-            # nn.Softplus()
+            # nn.Softmax()
+            nn.Softplus()
         )
 
         self.dropout = nn.Dropout(p=self.drop_p)

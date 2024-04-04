@@ -103,9 +103,73 @@ def get_auc_loss_u2(y, output, num_l, device=None):
     return auc_loss
 
 
-class SurrogateAUCLoss(nn.Module):
+class SurrogateAUCLossDynamicWeighted(nn.Module):
     def __init__(self):
-        super(SurrogateAUCLoss, self).__init__()
+        super(SurrogateAUCLossDynamicWeighted, self).__init__()
+
+    def forward(self, y_true, y_pred):
+        batch_size = y_true.size(0)
+        y_true = y_true.view(batch_size, -1)  # Reshape the tensor to have a batch size and inferred second dimension
+        y_pred = y_pred.view(batch_size, -1)
+
+        loss = 0.0  # Initialize loss
+
+        for label in range(y_true.size(1)):
+            label_mask = (y_true[:, label] == 1)  # Mask for samples with the current label
+            num_positives = torch.sum(label_mask)  # Count the number of positives for the current label
+            num_negatives = torch.sum(~label_mask)  # Count the number of negatives for the current label
+
+            if num_positives > 0 and num_negatives > 0:
+                pos_scores = y_pred[label_mask]  # Predicted scores for positive samples
+                neg_scores = y_pred[~label_mask]  # Predicted scores for negative samples
+
+                # Ensure pos_scores and neg_scores have compatible shapes for broadcasting
+                pos_scores = pos_scores.view(-1, 1)  # Reshape to column vector
+                neg_scores = neg_scores.view(1, -1)  # Reshape to row vector
+
+                # Calculate hinge loss
+                hinge_loss = torch.mean(torch.clamp(1 - pos_scores + neg_scores, min=0))
+
+                # Calculate label-specific weight
+                weight = 1.0 / (num_positives * num_negatives)
+
+                # Apply label-specific weight to the loss
+                weighted_loss = weight * hinge_loss
+
+                loss += weighted_loss
+
+        return loss
+
+
+class SurrogateAUCLossU1(nn.Module):
+    def __init__(self):
+        super(SurrogateAUCLossU1, self).__init__()
+
+    def forward(self, y_true, y_pred):
+        batch_size = y_true.size(0)
+        y_true = y_true.view(batch_size, -1)  # Reshaping the tensor to have a batch size and inferred second dimension
+        y_pred = y_pred.view(batch_size, -1)
+
+        pos_mask = (y_true == 1)
+        neg_mask = (y_true == 0)
+
+        pos_scores = y_pred[pos_mask]
+        neg_scores = y_pred[neg_mask]
+
+        # Reshaping pos_scores into a column vector and expanding to match neg_scores at second dim
+        pos_scores = pos_scores.view(-1, 1).expand(-1, neg_scores.size(0))
+        # Reshaping neg_scores into a row vector. copying the elements and expanding to match pos_scores at first dim
+        neg_scores = neg_scores.view(1, -1).expand(pos_scores.size(0), -1)
+
+        # The torch.mean() function calculates the mean value of all the elements in the tensor,
+        # regardless of its dimension.
+        hinge_loss = torch.mean(torch.clamp(1 - pos_scores + neg_scores, min=0))  # clamps all negative values to zero
+        return hinge_loss
+
+
+class SurrogateAUCLossNatural(nn.Module):
+    def __init__(self):
+        super(SurrogateAUCLossNatural, self).__init__()
 
     def forward(self, y_true, y_pred):
         batch_size = y_true.size(0)
@@ -143,9 +207,11 @@ def ml_nn_loss2(targets, outputs, model, device=None):
     # soft_margin_loss = nn.MultiLabelSoftMarginLoss()
     # loss = soft_margin_loss(outputs, targets)
 
-    gpt_surrogate_auc_loss = SurrogateAUCLoss()
-    loss = gpt_surrogate_auc_loss(targets, outputs)
+    # gpt_surrogate_auc_loss = SurrogateAUCLossDynamicWeighted()
+    # loss = gpt_surrogate_auc_loss(targets, outputs)
 
+    surrogate_auc_loss_u2 = SurrogateAUCLossNatural()
+    loss = surrogate_auc_loss_u2(targets, outputs)
 
 
     # label_length = targets.size(1)

@@ -51,8 +51,9 @@ results = []
 #                      drop_p=args.m_drop_p, activation=args.m_activation).to(device)
 
 # model 2
-linear_model = LinearNNWithSelfAttention(in_size=num_features, hidden_size=args.m_hidden, out_size=out_size, embed=args.m_embed,
-                     drop_p=args.m_drop_p, activation=args.m_activation, num_heads=8).to(device)
+linear_model = ResNet18(in_size=num_features, hidden_size=args.m_hidden, out_size=out_size,
+                        embed=args.m_embed,
+                        drop_p=args.m_drop_p, activation=args.m_activation).to(device)
 
 train_model = linear_model
 # check total parameters of this model
@@ -70,11 +71,12 @@ model_opt, loss_opt = train_sep_bm(train_model,
                                    num_epochs=args.pretrain_epochs,
                                    device_train=None,
                                    num_l=num_labels,
-                                   fname=fname
+                                   fname=fnamesub
                                    )
 model_opt.eval()
 results += add_res(model_opt, test_data.get_xtest(), test_data.get_ytest(), device=device)
 print(results)
+
 # model 2
 # bm_model = LinearNN(in_size=num_features, hidden_size=args.m_hidden, out_size=out_size, embed=args.m_embed,
 #                                drop_p=args.m_drop_p, activation=args.m_activation).to(device)
