@@ -17,9 +17,9 @@ def get_args():
                         help="test size")
 
     # model settings
-    parser.add_argument('--m_hidden', type= int, default=1024, help="Number of nodes per hidden layer")
+    parser.add_argument('--m_hidden', type= int, default=512, help="Number of nodes per hidden layer")
     parser.add_argument('--m_embed', type= int, default=512, help="Number of features in embedding space")
-    parser.add_argument('--m_activation', type= str, default="relu", help="Type of activation function used in model")
+    parser.add_argument('--m_activation', type= str, default="ELU", help="Type of activation function used in model")
     parser.add_argument('--m_drop_p', type= float, default=0.1, help="Dropout ratio")
 
     # dataloader setting

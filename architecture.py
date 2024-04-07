@@ -1,21 +1,189 @@
 import math
 
+import timm
+import torchvision
+import torchvision.transforms as transforms
 import torch
 import torch.nn as nn
 import torchvision.models as models
 import torch.nn.functional as F
 from edl_pytorch import NormalInvGamma
 from torch.nn import TransformerEncoderLayer, TransformerEncoder
+from einops.layers.torch import Rearrange
+from timm.models.vision_transformer import VisionTransformer
+from transformers.models import vit
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print('Using {} device'.format(device))
 
 
-class ResNet18(nn.Module):
+class BernoulliMixture(nn.Module):
+    def __init__(self, in_size, hidden_size, out_size, embed_length, drop_p=0.5, activation=nn.ELU()):
+        super(BernoulliMixture, self).__init__()
+
+        # Embedding layer
+
+        self.k = 6
+        self.embed = nn.Embedding(in_size, self.k)
+        # Fully connected layers for Pi
+        self.fc_pi = nn.Sequential(
+            nn.Linear(in_size, hidden_size),
+            activation,
+            nn.Dropout(drop_p),
+            nn.Linear(hidden_size, self.k)
+        )
+
+        # Fully connected layers for Miu
+        self.fc_miu = nn.Sequential(
+            nn.Linear(in_size, hidden_size),
+            activation,
+            nn.Dropout(drop_p),
+            nn.Linear(hidden_size, out_size),  # Adjusted for k*out_size
+            nn.Sigmoid()  # Sigmoid activation for Miu
+        )
+
+    def forward(self, x):
+        # Component means (Miu)
+        # Convert input tensor to Long type
+        embedding_miu = x.long()
+        # print("Shape before embedding layer:", embedding_miu.shape)
+        # Pass through the embedding layer
+        embedding_miu = self.embed(embedding_miu)
+        embedding_miu = embedding_miu.permute(0, 2, 1)
+        #  print("Shape after embedding layer:", embedding_miu.shape)
+
+        miu = self.fc_miu(embedding_miu)
+        # print("Shape of miu", miu.shape)
+
+        # Component probabilities (Pi)
+        pi = torch.softmax(self.fc_pi(x), dim=-1)
+        # print("Shape of pi:", pi.shape)
+
+        pi_expanded = pi.unsqueeze(-1).expand(-1, -1, 156)
+
+        # Multiply miu and pi_expanded
+        result = torch.sum(miu * pi_expanded, dim=1)  # Sum along the second dimension of miu
+        # print("Shape of result after reshaping:", result.shape)
+
+        # # Compute the final result: sum_k^6{Pi_k * Miu_k}
+        # result = torch.sum(pi.unsqueeze(-1) * miu, dim=1)
+
+        return result
+
+
+class ViTModel(nn.Module):
     def __init__(self, in_size=None, hidden_size=None, out_size=None, embed=None,
                  drop_p=0.5, activation=None):
+        super(ViTModel, self).__init__()
+
+        # Load the pretrained Vision Transformer model
+        self.vit = VisionTransformer(img_size=224, patch_size=16, num_classes=512, embed_dim=embed,
+                                     depth=12, num_heads=8, mlp_ratio=4, qkv_bias=True, drop_rate=drop_p)
+
+        # Modify the classification head to match the desired output size
+        self.fc = nn.Sequential(
+            nn.Linear(self.vit.embed_dim, hidden_size),
+            nn.ReLU(),
+            nn.Dropout(drop_p),
+            nn.Linear(hidden_size, out_size)
+        )
+
+    def forward(self, x):
+        # Forward pass through the Vision Transformer backbone
+        features = self.vit(x)
+        # Apply the classification head
+        output = self.fc(features)
+        return output
+
+#
+# class ViTModel(nn.Module):
+#     def __init__(self, in_size, hidden_size, out_size, embed,
+#                  drop_p, activation):
+#         super(ViTModel, self).__init__()
+#
+#         # Load the pretrained Vision Transformer model
+#         pretrained_vit = timm.create_model('vit_base_patch16_224', pretrained=True)
+#         self.vit = pretrained_vit
+#
+#         # Freeze the base parameters
+#         for parameter in self.vit.parameters():
+#             parameter.requires_grad = True
+#
+#         # Modify the final fully connected layer
+#         self.vit.head = nn.Linear(in_features=self.vit.head.in_features, out_features=156, bias=True)
+#
+#     def forward(self, x):
+#         # Forward pass through the Vision Transformer backbone
+#         outputs = self.vit(x)
+#
+#         return outputs
+
+
+class ResNet18(nn.Module):
+    def __init__(self, in_size, hidden_size, out_size, embed,
+                 drop_p, activation):
         super(ResNet18, self).__init__()
         self.resnet = models.resnet18(pretrained=True)
+        # Freeze the parameters of the ResNet-18 backbone
+        for param in self.resnet.parameters():
+            param.requires_grad = True
+
+        # Resize input to match the expected input size of ResNet-18
+        self.fc_input = nn.Linear(in_size, 224)  # Adjust input size to match ResNet-18
+
+        # Modify the classifier layers to match the desired output size
+        num_features = self.resnet.fc.in_features
+        self.resnet.fc = nn.Sequential(
+            nn.Linear(num_features, hidden_size),
+            nn.ReLU(),
+            nn.Dropout(drop_p),
+            nn.Linear(hidden_size, out_size)
+        )
+
+    def forward(self, x):
+        # # Resize input to match the expected input size of ResNet-18
+        # x = self.fc_input(x)
+
+        # Forward pass through the ResNet-18 backbone
+        features = self.resnet(x)
+        return features
+
+
+class ResNet50(nn.Module):
+    def __init__(self, in_size=None, hidden_size=None, out_size=None, embed=None,
+                 drop_p=0.5, activation=None):
+        super(ResNet50, self).__init__()
+        self.resnet = models.resnet50(pretrained=True)
+        # Freeze the parameters of the ResNet-18 backbone
+        for param in self.resnet.parameters():
+            param.requires_grad = True
+
+        # Resize input to match the expected input size of ResNet-18
+        self.fc_input = nn.Linear(in_size, 224)  # Adjust input size to match ResNet-18
+
+        # Modify the classifier layers to match the desired output size
+        num_features = self.resnet.fc.in_features
+        self.resnet.fc = nn.Sequential(
+            nn.Linear(num_features, hidden_size),
+            nn.ReLU(),
+            nn.Dropout(drop_p),
+            nn.Linear(hidden_size, out_size)
+        )
+
+    def forward(self, x):
+        # # Resize input to match the expected input size of ResNet-18
+        # x = self.fc_input(x)
+
+        # Forward pass through the ResNet-18 backbone
+        features = self.resnet(x)
+        return features
+
+
+class LinearNN1(nn.Module):
+    def __init__(self, in_size=None, hidden_size=None, out_size=None, embed=None, drop_p=0.5, activation='relu', *args,
+                 **kwargs):
+        super(LinearNN1, self).__init__()
+        # super().__init__(*args, **kwargs)
         self.fc1 = nn.Linear(in_size, 512)  # Adjust input size to match your data
         self.fc2 = nn.Linear(512, out_size)
         self.dropout = nn.Dropout(p=drop_p)
@@ -27,60 +195,6 @@ class ResNet18(nn.Module):
         x = self.dropout(x)
         x = self.fc2(x)
         return x
-
-
-class LinearNN1(nn.Module):
-    def __init__(self, in_size=None, hidden_size=None, out_size=None, embed=None,
-                 drop_p=0.5, activation='relu'):
-        super(LinearNN1, self).__init__()
-        self.hidden = hidden_size
-        self.embed = embed
-        self.in_size = in_size
-        self.out_size = out_size  # number of labels
-        self.drop_p = drop_p
-        self.activation = activation
-
-        # Encoder layers
-        self.encoder = nn.Sequential(
-            nn.Linear(in_size, hidden_size),
-            self.get_activation(),
-            nn.Linear(hidden_size, embed),
-        )
-
-        # Decoder layers
-        self.decoder = nn.Sequential(
-            nn.Linear(embed, hidden_size),
-            self.get_activation(),
-            nn.Linear(hidden_size, hidden_size),
-            self.get_activation(),
-            nn.Linear(hidden_size, hidden_size),
-            self.get_activation(),
-            nn.Linear(hidden_size, hidden_size),
-            self.get_activation(),
-            nn.Linear(hidden_size, out_size),
-            # nn.Softmax()
-            nn.Softplus()
-        )
-
-        self.dropout = nn.Dropout(p=self.drop_p)
-
-    def forward(self, data):
-        emb = self.encoder(data)
-        emb = self.dropout(emb)  # Apply dropout after encoding
-        output = self.decoder(emb)
-        return output
-
-    def get_activation(self):
-        if self.activation == 'relu':
-            return nn.ReLU()
-        elif self.activation == 'leakyrelu':
-            return nn.LeakyReLU()
-        elif self.activation == 'elu':
-            return nn.ELU()
-        elif self.activation == 'softplus':
-            return nn.Softplus()
-        else:
-            raise ValueError("Invalid activation function")
 
 
 class LinearNN(nn.Module):

@@ -11,7 +11,6 @@ from config import get_args
 from util import *
 from architecture import *
 
-from data import get_data
 
 
 def train_sep_bm(model,
@@ -51,7 +50,7 @@ def train_sep_bm(model,
                 all_probs = []
 
                 for i, (inputs, labels) in enumerate(dataloaders[phase]):
-
+                    # inputs = preprocess_data(inputs)
                     inputs = inputs.to(device_train)
                     labels = labels.to(device_train)
 

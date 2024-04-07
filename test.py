@@ -7,6 +7,7 @@ from sklearn import metrics
 from sklearn.metrics import mean_squared_error, f1_score, roc_auc_score, accuracy_score
 import csv
 from config import get_args
+from data import preprocess_data
 
 
 def add_res(model_opt, x_test, y_test, n=None,

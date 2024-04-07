@@ -3,6 +3,8 @@ import numpy as np
 import torch
 from config import get_args
 from util import *
+import torchvision.transforms as transforms
+from architecture import *
 
 args = get_args()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -45,6 +47,9 @@ class MyDataset(Dataset):
 
     def get_ytest(self):
         return self.y
+
+    def change_x_data(self, new_x_data):
+        self.x = new_x_data  # .type(torch.float)
 
 def split(data,label=None,train_rate=0.1,candidate_rate=0.6,
           test_rate=0.3,seed=25,even=False):
@@ -121,13 +126,16 @@ def get_data():
     xcan = torch.tensor(x[candidate_index])
     ycan = torch.tensor(y[candidate_index])
 
+# add it when it's CV model@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#     xtrain = preprocess_data(xtrain)
+#     xtest = preprocess_data(xtest)
+
     train_data = MyDataset(xtrain.to(device),  ytrain.to(device))
     test_data = MyDataset(xtest.to(device),  ytest.to(device))
 
     return train_data, test_data
 
 
-#
 # # Assuming you have your data x and y ready
 # xx = torch.tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
 # yy = torch.tensor([0, 1, 0])
@@ -151,6 +159,64 @@ def get_data():
 #     print("Instances:", instances)
 #     print("Labels:", labels)
 
+
+def check_cv_and_preprocess_data(model, data):
+    # Define a new list to reserve CV models
+    # cv_models = [type(ViTModel()), type(ResNet18()), type(ResNet50())]
+    cv_models = []
+    # Add ViTModel to the CV_models list
+    vit_model = ViTModel(in_size=None, hidden_size=224, out_size=224, embed=224,
+                 drop_p=0.5, activation=None)  # Instantiate ViTModel with appropriate arguments
+    cv_models.append(type(vit_model))
+    res18_model = ResNet18(in_size=224, hidden_size=224, out_size=224, embed=224,
+                          drop_p=0.5, activation=None)  # Instantiate ViTModel with appropriate arguments
+    cv_models.append(type(res18_model))
+    res50_model = ResNet50(in_size=224, hidden_size=224, out_size=224, embed=224,
+                          drop_p=0.5, activation=None)  # Instantiate ViTModel with appropriate arguments
+    cv_models.append(type(res50_model))
+    # Add other CV models to the list if needed
+
+    def is_cv_model(model_check):
+        """
+        Check if the given model belongs to the CV models list.
+
+        Args:
+            model_check (nn.Module): The model to check.
+
+        Returns:
+            bool: True if the model belongs to the CV models list, False otherwise.
+        """
+        return type(model_check) in cv_models
+
+    if is_cv_model(model):
+        # Handle CV model training differently
+        processed = preprocess_data(data.get_xtest())
+        data.change_x_data(processed)
+    else:
+        # Handle non-CV model training
+        pass
+    return data.get_xtest
+
+
+# Make our data look like an image to use CV Architecture
+def preprocess_data(data):
+    # Reshape the 2D input data into 3D tensors representing grayscale images
+    # Add a singleton dimension for the channel axis
+    # data = data.reshape(-1, 1, 1, data.shape[1])
+    data = data.reshape(-1, 1, 1, data.shape[1]).repeat(1, 3, 1, 1)  # 3 channels
+
+    # Convert numpy array to PyTorch tensor
+    # data_tensor = torch.tensor(data, dtype=torch.float32)
+    data_tensor = data.clone().detach().to(torch.float32)
+
+    # Normalize the pixel values to be in the range [0, 1]
+    data_tensor /= 255.0
+
+    # Resize the images to match the expected input size of ResNet-18 (224x224)
+    resize_transform = transforms.Resize((224, 224))
+    data_resized = torch.stack([resize_transform(x) for x in data_tensor])
+
+    return data_resized
 
 print(' dataset is called: ', args.data_name)
 features, labels = read_dataset(args.data_name)

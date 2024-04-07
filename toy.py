@@ -6,74 +6,49 @@ import torch.optim as optim
 
 import torch
 import torch.nn as nn
+from architecture import *
 
 
-class LinearNN(nn.Module):
-    def __init__(self, in_size=None, hidden_size=None, out_size=None, embed=None,
-                 drop_p=0.5, activation='relu'):
-        super(LinearNN, self).__init__()
-        self.hidden = hidden_size
-        self.embed = embed
-        self.in_size = in_size
-        self.out_size = out_size  # number of labels
-        self.drop_p = drop_p
-        self.activation = activation
+def check_cv_and_preprocess_data(model):
+    # Define a new list to reserve CV models
+    cv_models = []
 
-        # Encoder layers
-        self.encoder = nn.Sequential(
-            nn.Linear(in_size, hidden_size),
-            self.get_activation(),
-            nn.Linear(hidden_size, embed),
-        )
+    # Add ViTModel to the CV_models list
+    vit_model = ViTModel(in_size=None, hidden_size=224, out_size=224, embed=224,
+                 drop_p=0.5, activation=None)  # Instantiate ViTModel with appropriate arguments
+    cv_models.append(type(vit_model))
+    res18_model = ResNet18(in_size=224, hidden_size=224, out_size=224, embed=224,
+                          drop_p=0.5, activation=None)  # Instantiate ViTModel with appropriate arguments
+    cv_models.append(type(res18_model))
+    res50_model = ResNet50(in_size=224, hidden_size=224, out_size=224, embed=224,
+                          drop_p=0.5, activation=None)  # Instantiate ViTModel with appropriate arguments
+    cv_models.append(type(res50_model))
+    # Add other CV models to the list if needed
 
-        # Decoder layers
-        self.decoder = nn.Sequential(
-            nn.Linear(embed, hidden_size),
-            self.get_activation(),
-            nn.Linear(hidden_size, hidden_size),
-            self.get_activation(),
-            nn.Linear(hidden_size, out_size),
-            nn.Sigmoid()  # Sigmoid for multi-label classification
-        )
+    def is_cv_model(model_check):
+        """
+        Check if the given model belongs to the CV models list.
 
-        self.dropout = nn.Dropout(p=self.drop_p)
+        Args:
+            model_check (nn.Module): The model to check.
 
-    def forward(self, data):
-        emb = self.encoder(data)
-        emb = self.dropout(emb)  # Apply dropout after encoding
-        output = self.decoder(emb)
-        return output
+        Returns:
+            bool: True if the model belongs to the CV models list, False otherwise.
+        """
+        return type(model_check) in cv_models
 
-    def get_activation(self):
-        if self.activation == 'relu':
-            return nn.ReLU()
-        elif self.activation == 'leakyrelu':
-            return nn.LeakyReLU()
-        elif self.activation == 'elu':
-            return nn.ELU()
-        else:
-            raise ValueError("Invalid activation function")
+    if is_cv_model(model):
+        # Handle CV model training differently
+        print("yes")
+    else:
+        # Handle non-CV model training
+        print("no")
 
 
-# Example usage:
-# Define your model
-model = LinearNN(in_size=INPUT_SIZE, hidden_size=HIDDEN_SIZE, out_size=OUTPUT_SIZE, embed=30)
+# vit_model1 = ViTModel(in_size=None, hidden_size=224, out_size=224, embed=224,
+#                  drop_p=0.5, activation=None)  # Instantiate ViTModel with appropriate arguments
 
-# Define your loss function
-criterion = nn.BCELoss()  # Binary Cross-Entropy Loss for multi-label classification
+vit_model1 = ResNet50(in_size=224, hidden_size=224, out_size=224, embed=224,
+                 drop_p=0.5, activation=None)  # Instantiate ViTModel with appropriate arguments
 
-# Define your optimizer
-optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
-
-# Training loop
-for epoch in range(NUM_EPOCHS):
-    # Forward pass
-    outputs = model(inputs)
-
-    # Compute loss
-    loss = criterion(outputs, targets)
-
-    # Backward pass and optimization
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
+check_cv_and_preprocess_data(vit_model1)
