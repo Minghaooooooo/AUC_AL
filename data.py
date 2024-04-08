@@ -127,8 +127,8 @@ def get_data():
     ycan = torch.tensor(y[candidate_index])
 
 # add it when it's CV model@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#     xtrain = preprocess_data(xtrain)
-#     xtest = preprocess_data(xtest)
+    xtrain = preprocess_data(xtrain)
+    xtest = preprocess_data(xtest)
 
     train_data = MyDataset(xtrain.to(device),  ytrain.to(device))
     test_data = MyDataset(xtest.to(device),  ytest.to(device))

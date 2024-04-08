@@ -17,14 +17,107 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print('Using {} device'.format(device))
 
 
+class ResNet18(nn.Module):
+    def __init__(self, in_size, hidden_size, out_size, embed,
+                 drop_p, activation):
+        super(ResNet18, self).__init__()
+        self.resnet = models.resnet18(pretrained=True)
+        # Freeze the parameters of the ResNet-18 backbone
+        for param in self.resnet.parameters():
+            param.requires_grad = True
+
+        # Resize input to match the expected input size of ResNet-18
+        self.fc_input = nn.Linear(in_size, 224)  # Adjust input size to match ResNet-18
+
+        # Modify the classifier layers to match the desired output size
+        num_features = self.resnet.fc.in_features
+        self.resnet.fc = nn.Sequential(
+            nn.Linear(num_features, hidden_size),
+            nn.ReLU(),
+            nn.Dropout(drop_p),
+            nn.Linear(hidden_size, out_size)
+        )
+
+    def forward(self, x):
+        # # Resize input to match the expected input size of ResNet-18
+        # x = self.fc_input(x)
+
+        # Forward pass through the ResNet-18 backbone
+        features = self.resnet(x)
+        return features
+
+
+class BernoulliResnet18(nn.Module):
+    def __init__(self, in_size, hidden_size, out_size, embed_length, drop_p=0.5, activation=nn.ELU()):
+        super(BernoulliResnet18, self).__init__()
+
+        self.k = 6
+        self.embed_length = embed_length
+        # ResNet18 embedding
+        self.resnet_embedding = ResNet18(in_size, hidden_size, self.embed_length*self.k,
+                                         embed_length, drop_p, activation)
+
+        self.out_size = out_size
+        # Embedding layer
+
+        # self.embed = nn.Embedding(embed_length, self.k)
+        # self.embed = nn.Embedding(embed_length, self.k)
+
+        # Fully connected layers for Pi
+        self.fc_pi = nn.Sequential(
+            nn.Linear(self.embed_length*self.k, hidden_size),
+            activation,
+            nn.Dropout(drop_p),
+            nn.Linear(hidden_size, self.k)
+        )
+
+        # Fully connected layers for Miu
+        self.fc_miu = nn.Sequential(
+            nn.Linear(embed_length, hidden_size),
+            activation,
+            nn.Dropout(drop_p),
+            nn.Linear(hidden_size, out_size),  # Adjusted for k*out_size
+            nn.Sigmoid()  # Sigmoid activation for Miu
+        )
+
+    def forward(self, x):
+        print("Shape of our data batch shape:", x.shape)
+        # Obtain ResNet-18 embeddings
+        resnet_embeddings = self.resnet_embedding(x)
+        embedding_miu = resnet_embeddings.view(-1, self.embed_length, self.k)
+        print("Shape before embedding layer:", embedding_miu.shape)
+
+        # Component means (Miu)
+        # Convert input tensor to Long type
+        print("Shape before embedding layer:", embedding_miu.shape)
+        # Pass through the embedding layer
+        # embedding_miu = self.embed(embedding_miu)
+        embedding_miu = embedding_miu.permute(0, 2, 1)
+        print("Shape after embedding layer:", embedding_miu.shape)
+
+        # Concatenate ResNet-18 embeddings with previous embeddings
+        # embedding_miu = torch.cat((embedding_miu, resnet_embeddings.unsqueeze(1)), dim=1)
+
+        miu = self.fc_miu(embedding_miu)
+
+        # Component probabilities (Pi)
+        pi = torch.softmax(self.fc_pi(resnet_embeddings), dim=-1)
+
+        pi_expanded = pi.unsqueeze(-1).expand(-1, -1, self.out_size)
+
+        # Multiply miu and pi_expanded
+        result = torch.sum(miu * pi_expanded, dim=1)
+
+        return result
+
+
 class BernoulliMixture(nn.Module):
     def __init__(self, in_size, hidden_size, out_size, embed_length, drop_p=0.5, activation=nn.ELU()):
         super(BernoulliMixture, self).__init__()
 
-        # Embedding layer
-
-        self.k = 6
+        self.k = 10
         self.embed = nn.Embedding(in_size, self.k)
+
         # Fully connected layers for Pi
         self.fc_pi = nn.Sequential(
             nn.Linear(in_size, hidden_size),
@@ -46,11 +139,11 @@ class BernoulliMixture(nn.Module):
         # Component means (Miu)
         # Convert input tensor to Long type
         embedding_miu = x.long()
-        # print("Shape before embedding layer:", embedding_miu.shape)
+        print("Shape before embedding layer:", embedding_miu.shape)
         # Pass through the embedding layer
         embedding_miu = self.embed(embedding_miu)
         embedding_miu = embedding_miu.permute(0, 2, 1)
-        #  print("Shape after embedding layer:", embedding_miu.shape)
+        print("Shape after embedding layer:", embedding_miu.shape)
 
         miu = self.fc_miu(embedding_miu)
         # print("Shape of miu", miu.shape)
@@ -117,36 +210,6 @@ class ViTModel(nn.Module):
 #         outputs = self.vit(x)
 #
 #         return outputs
-
-
-class ResNet18(nn.Module):
-    def __init__(self, in_size, hidden_size, out_size, embed,
-                 drop_p, activation):
-        super(ResNet18, self).__init__()
-        self.resnet = models.resnet18(pretrained=True)
-        # Freeze the parameters of the ResNet-18 backbone
-        for param in self.resnet.parameters():
-            param.requires_grad = True
-
-        # Resize input to match the expected input size of ResNet-18
-        self.fc_input = nn.Linear(in_size, 224)  # Adjust input size to match ResNet-18
-
-        # Modify the classifier layers to match the desired output size
-        num_features = self.resnet.fc.in_features
-        self.resnet.fc = nn.Sequential(
-            nn.Linear(num_features, hidden_size),
-            nn.ReLU(),
-            nn.Dropout(drop_p),
-            nn.Linear(hidden_size, out_size)
-        )
-
-    def forward(self, x):
-        # # Resize input to match the expected input size of ResNet-18
-        # x = self.fc_input(x)
-
-        # Forward pass through the ResNet-18 backbone
-        features = self.resnet(x)
-        return features
 
 
 class ResNet50(nn.Module):

@@ -45,9 +45,13 @@ num_features = train_data.x.size(1)
 #                      drop_p=args.m_drop_p, activation=args.m_activation).to(device)
 
 
-# model 2
-linear_model = BernoulliMixture(in_size=num_features, hidden_size=32, out_size=out_size,
-                                embed_length=args.m_embed, drop_p=args.m_drop_p, activation=nn.ELU()).to(device)
+# Bernoulli model
+# linear_model = BernoulliMixture(in_size=num_features, hidden_size=32, out_size=out_size,
+#                                 embed_length=args.m_embed, drop_p=args.m_drop_p, activation=nn.ELU()).to(device)
+
+# Bernoulli Resnet18
+linear_model = BernoulliResnet18(in_size=num_features, hidden_size=32, out_size=out_size,
+                                 embed_length=args.m_embed, drop_p=args.m_drop_p, activation=nn.ELU()).to(device)
 
 train_model = linear_model
 
@@ -59,7 +63,6 @@ dataloaders = {
     "train": train_dataloader,
     "val": test_dataloader,
 }
-
 
 # check total parameters of this model
 pytorch_total_params = sum(p.numel() for p in train_model.parameters())
