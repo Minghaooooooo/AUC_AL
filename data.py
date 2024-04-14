@@ -42,10 +42,10 @@ class MyDataset(Dataset):
     def label_length(self):
         return len(self.y[0])
 
-    def get_xtest(self):
+    def get_x(self):
         return self.x
 
-    def get_ytest(self):
+    def get_y(self):
         return self.y
 
     def change_x_data(self, new_x_data):
@@ -105,15 +105,12 @@ def split(data,label=None,train_rate=0.1,candidate_rate=0.6,
         return list(train_index),list(candidate_index),list(test_index)
 
 
-def get_data():
+def get_data(train_ratio, pool_ratio, test_ratio):
     x, y = read_dataset(args.data_name)
     # print(x.shape)
-    train = args.train
-    pool = args.pool
-    test = args.test
     deterministic(args.seed)
-    train_index, candidate_index, test_index = split(x, label=y, train_rate=train,
-                                                     candidate_rate=pool, test_rate=test,
+    train_index, candidate_index, test_index = split(x, label=y, train_rate=train_ratio,
+                                                     candidate_rate=pool_ratio, test_rate=test_ratio,
                                                      seed=args.seed, even=True)
     print('training datasize', len(train_index))
     print('testing datasize', len(test_index))
@@ -129,11 +126,12 @@ def get_data():
 # add it when it's CV model@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
     xtrain = preprocess_data(xtrain)
     xtest = preprocess_data(xtest)
+    xcan = preprocess_data(xcan)
 
     train_data = MyDataset(xtrain.to(device),  ytrain.to(device))
     test_data = MyDataset(xtest.to(device),  ytest.to(device))
-
-    return train_data, test_data
+    pool_data = MyDataset(xcan.to(device), ycan.to(device))
+    return train_data, pool_data, test_data
 
 
 # # Assuming you have your data x and y ready
@@ -158,44 +156,6 @@ def get_data():
 #     instances, labels = batch
 #     print("Instances:", instances)
 #     print("Labels:", labels)
-
-
-def check_cv_and_preprocess_data(model, data):
-    # Define a new list to reserve CV models
-    # cv_models = [type(ViTModel()), type(ResNet18()), type(ResNet50())]
-    cv_models = []
-    # Add ViTModel to the CV_models list
-    vit_model = ViTModel(in_size=None, hidden_size=224, out_size=224, embed=224,
-                 drop_p=0.5, activation=None)  # Instantiate ViTModel with appropriate arguments
-    cv_models.append(type(vit_model))
-    res18_model = ResNet18(in_size=224, hidden_size=224, out_size=224, embed=224,
-                          drop_p=0.5, activation=None)  # Instantiate ViTModel with appropriate arguments
-    cv_models.append(type(res18_model))
-    res50_model = ResNet50(in_size=224, hidden_size=224, out_size=224, embed=224,
-                          drop_p=0.5, activation=None)  # Instantiate ViTModel with appropriate arguments
-    cv_models.append(type(res50_model))
-    # Add other CV models to the list if needed
-
-    def is_cv_model(model_check):
-        """
-        Check if the given model belongs to the CV models list.
-
-        Args:
-            model_check (nn.Module): The model to check.
-
-        Returns:
-            bool: True if the model belongs to the CV models list, False otherwise.
-        """
-        return type(model_check) in cv_models
-
-    if is_cv_model(model):
-        # Handle CV model training differently
-        processed = preprocess_data(data.get_xtest())
-        data.change_x_data(processed)
-    else:
-        # Handle non-CV model training
-        pass
-    return data.get_xtest
 
 
 # Make our data look like an image to use CV Architecture

@@ -54,18 +54,14 @@ def ml_nn_loss(y, outputs, model, device=None):
     y = y.to(device)
     # non_mse = nn.MSELoss()
     # Multilabelsoftmarginloss:
-    non_mse = nn.MultiLabelSoftMarginLoss()
+    # non_mse = nn.MultiLabelSoftMarginLoss()
     # Non Multilabel Loss:
     # non_mse = nn.BCELoss()  # Binary Cross-Entropy Loss
-
-    loss = non_mse(outputs, y)
+    crossentropy_loss = nn.CrossEntropyLoss()
+    surrogate_auc_loss_u2 = SurrogateAUCLossNatural()
+    loss = crossentropy_loss(outputs, y)/50 + surrogate_auc_loss_u2(y, outputs)
     # loss = pairwise_ranking_loss(y, outputs)
 
-    # y_pairwise = y.view(-1)
-    # outputs_pairwise = outputs.view(-1)
-    # print("outputs", outputs_pairwise.shape)
-    # print("y", y_pairwise.shape)
-    # loss = pairwise_ranking_loss(y_pairwise, outputs_pairwise)  # Pairwise ranking loss
     return loss
 
 

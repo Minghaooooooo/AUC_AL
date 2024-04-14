@@ -1,54 +1,107 @@
+from data import get_data
 from loss import *
-
+import csv
+import os
+from torch import optim
+from torch.utils.data import DataLoader
+import numpy as np
 import torch
-import torch.nn as nn
-import torch.optim as optim
-
-import torch
-import torch.nn as nn
+from config import get_args
+from loss import *
+from test import add_res
+from pretrain import train
+from util import *
 from architecture import *
+from data import get_data
+from active_train import ActiveLearning, get_new_resnet18
+
+args = get_args()
+
+check_path = './result/data.csv'
+if os.path.exists(check_path):
+    os.remove(check_path)
+
+fname = args.data_name
+fnamesub = fname + '.csv'
+header = ['K@1', 'K@2', 'micro_AUC', 'macro_AUC']
+
+with open('./result/' + fnamesub, 'w') as f:
+    writer_obj = csv.writer(f)
+    writer_obj.writerow(header)
+
+# get GPU or CPU
+device = get_device()
+
+# for i in range(10, 0, -1):
+results = []
+
+# get Dataloader
+train_data, pool_data, test_data = get_data(train_ratio=args.train, pool_ratio=args.pool,test_ratio=args.test)
+
+num_labels = test_data.label_length()
+# print(test_label_length)
+out_size = num_labels
+num_features = train_data.x.size(1)
+
+linear_model = ResNet18(in_size=num_features, hidden_size=args.m_hidden, out_size=out_size, embed=args.m_embed,
+                        drop_p=args.m_drop_p, activation=args.m_activation).to(device)
+
+train_model = linear_model
+
+# train_data.change_x_data(check_cv_and_preprocess_data(train_model, train_data))
+
+train_dataloader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
+test_dataloader = DataLoader(test_data, batch_size=len(test_data), shuffle=False)
+dataloaders = {
+    "train": train_dataloader,
+    "val": test_dataloader,
+}
+
+# check total parameters of this model
+pytorch_total_params = sum(p.numel() for p in train_model.parameters())
+print(" Number of Parameters: ", pytorch_total_params)
+
+optimizer = optim.Adam(train_model.parameters(), lr=args.lr, weight_decay=args.wd)
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=0)
+criterion = ml_nn_loss2  # ml_nn_loss2
+
+pretrain_model, loss_opt = train(train_model,
+                                 dataloaders,
+                                 criterion=criterion,
+                                 optimizer=optimizer,
+                                 scheduler=scheduler,
+                                 num_epochs=args.active_epochs,
+                                 device_train=None,
+                                 num_l=num_labels,
+                                 fname=fnamesub
+                                 )
 
 
-def check_cv_and_preprocess_data(model):
-    # Define a new list to reserve CV models
-    cv_models = []
-
-    # Add ViTModel to the CV_models list
-    vit_model = ViTModel(in_size=None, hidden_size=224, out_size=224, embed=224,
-                 drop_p=0.5, activation=None)  # Instantiate ViTModel with appropriate arguments
-    cv_models.append(type(vit_model))
-    res18_model = ResNet18(in_size=224, hidden_size=224, out_size=224, embed=224,
-                          drop_p=0.5, activation=None)  # Instantiate ViTModel with appropriate arguments
-    cv_models.append(type(res18_model))
-    res50_model = ResNet50(in_size=224, hidden_size=224, out_size=224, embed=224,
-                          drop_p=0.5, activation=None)  # Instantiate ViTModel with appropriate arguments
-    cv_models.append(type(res50_model))
-    # Add other CV models to the list if needed
-
-    def is_cv_model(model_check):
-        """
-        Check if the given model belongs to the CV models list.
-
-        Args:
-            model_check (nn.Module): The model to check.
-
-        Returns:
-            bool: True if the model belongs to the CV models list, False otherwise.
-        """
-        return type(model_check) in cv_models
-
-    if is_cv_model(model):
-        # Handle CV model training differently
-        print("yes")
-    else:
-        # Handle non-CV model training
-        print("no")
+pretrain_model.eval()
+results += add_res(pretrain_model, test_data.get_x(), test_data.get_y(), device=device)
+print(results)
 
 
-# vit_model1 = ViTModel(in_size=None, hidden_size=224, out_size=224, embed=224,
-#                  drop_p=0.5, activation=None)  # Instantiate ViTModel with appropriate arguments
+with open('./result/' + fnamesub, 'a') as f:
+    writer_obj = csv.writer(f)
+    writer_obj.writerow(results)
 
-vit_model1 = ResNet50(in_size=224, hidden_size=224, out_size=224, embed=224,
-                 drop_p=0.5, activation=None)  # Instantiate ViTModel with appropriate arguments
 
-check_cv_and_preprocess_data(vit_model1)
+active_learning = ActiveLearning(pool_data)
+
+for i in range(args.active_rounds, 0, -1):
+
+    active_model = get_new_resnet18()
+
+    active_learning.select_instances_random(n_instances=args.active_instances)
+
+    active_learning.train_model(active_model)
+
+    results = add_res(pretrain_model, test_data.get_x(), test_data.get_y(), device=device)
+
+    print(results)
+
+    with open('./result/' + fnamesub, 'a') as f:
+        writer_obj = csv.writer(f)
+        writer_obj.writerow(results)
+

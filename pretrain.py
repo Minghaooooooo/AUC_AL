@@ -12,17 +12,16 @@ from util import *
 from architecture import *
 
 
-
-def train_sep_bm(model,
-                 dataloaders,
-                 criterion,
-                 optimizer,
-                 scheduler=None,
-                 num_epochs=None,
-                 device_train=None,
-                 num_l=None,
-                 fname=None
-                 ):
+def train(model,
+          dataloaders,
+          criterion,
+          optimizer,
+          scheduler=None,
+          num_epochs=None,
+          device_train=None,
+          num_l=None,
+          fname=None
+          ):
     since = time.time()
 
     if not device_train:
@@ -127,3 +126,4 @@ def train_sep_bm(model,
 
     # metrics = (losses, accuracy)
     return model, loss_list
+

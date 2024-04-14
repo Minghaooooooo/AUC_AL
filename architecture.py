@@ -27,7 +27,7 @@ class ResNet18(nn.Module):
             param.requires_grad = True
 
         # Resize input to match the expected input size of ResNet-18
-        self.fc_input = nn.Linear(in_size, 224)  # Adjust input size to match ResNet-18
+        # self.fc_input = nn.Linear(in_size, 224)  # Adjust input size to match ResNet-18
 
         # Modify the classifier layers to match the desired output size
         num_features = self.resnet.fc.in_features
@@ -43,8 +43,8 @@ class ResNet18(nn.Module):
         # x = self.fc_input(x)
 
         # Forward pass through the ResNet-18 backbone
-        features = self.resnet(x)
-        return features
+        results = self.resnet(x)
+        return results
 
 
 class BernoulliResnet18(nn.Module):
