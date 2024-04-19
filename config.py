@@ -11,9 +11,9 @@ def get_args():
     #                     help="Name of Dataset")
     parser.add_argument('--train', type=float, default=0.01,
                         help="train size")  # 0.01
-    parser.add_argument('--pool', type=float, default=0.1,
+    parser.add_argument('--pool', type=float, default=0.75,
                         help="pool size")
-    parser.add_argument('--test', type=float, default=0.1,
+    parser.add_argument('--test', type=float, default=0.2,
                         help="test size")
 
     # model settings
@@ -32,9 +32,10 @@ def get_args():
 
     # active learning setting
     parser.add_argument('--active_rounds', type=int, default=10, help="rounds of active learning")
-    parser.add_argument('--active_epochs', type=int, default=30, help="number of active learning epochs")
-    parser.add_argument('--active_instances', type=int, default=100, help="Number of instances for each active "
+    parser.add_argument('--active_instances', type=int, default=120, help="Number of instances for each active "
                                                                           "learning round")
+    parser.add_argument('--active_epochs', type=int, default=30, help="number of active learning epochs")
+    parser.add_argument('--active_batch_size', type=int, default=30, help="number of active learning epochs")
 
     args = parser.parse_args()
     return args

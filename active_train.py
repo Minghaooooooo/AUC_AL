@@ -101,11 +101,29 @@ class ActiveLearning:
         # Calculate the entropy of predictions for all instances in the pool dataset
         with torch.no_grad():
             logits = model(self.dataset.x)
-            probs = F.softmax(logits, dim=1)
-            entropy = -torch.sum(probs * torch.log(probs), dim=1)
+            print("Logits shape:", logits.shape)
+            probs = torch.sigmoid(logits)  # Using sigmoid instead of softmax
+            # probs = F.softmax(logits, dim=1)
 
-        # Select the instances with the highest entropy
-        _, selected_indices = torch.topk(entropy, n_instances, largest=False)
+
+        # # Calculate the margin for each instance
+        # margins, _ = torch.topk(probs, 2, dim=1)
+        # margin = margins[:, 0] - margins[:, 1]  # Difference between top two probabilities
+        # _, selected_indices = torch.topk(margin, n_instances)
+
+            # confidences, _ = torch.max(probs, dim=1)
+        #     least_confidence = 1 - confidences  # Confidence is inversely related to uncertainty
+        # _, selected_indices = torch.topk(least_confidence, n_instances)
+
+            # entropy select
+            entropy = -torch.sum(probs * torch.log(probs), dim=1)
+        _, selected_indices = torch.topk(entropy, n_instances)  # , largest=False)
+
+        # # random select
+        # total_instances = len(self.dataset)
+        # indices = list(range(total_instances))
+        # random.shuffle(indices)
+        # selected_indices = indices[:n_instances]
 
         # Get the corresponding instances and labels
         new_training_data = self.dataset.x[selected_indices]
@@ -116,10 +134,9 @@ class ActiveLearning:
         self.new_dataset.y = torch.cat([self.new_dataset.y, new_training_labels])
 
         # Remove the selected instances from the pool dataset
-        self.dataset.x = torch.cat([self.dataset.x[:selected_indices[0]], self.dataset.x[selected_indices[0] + 1:]],
-                                   dim=0)
-        self.dataset.y = torch.cat([self.dataset.y[:selected_indices[0]], self.dataset.y[selected_indices[0] + 1:]],
-                                   dim=0)
+        indices_to_keep = [i for i in range(len(self.dataset)) if i not in selected_indices]
+        self.dataset.x = torch.index_select(self.dataset.x, 0, torch.tensor(indices_to_keep))
+        self.dataset.y = torch.index_select(self.dataset.y, 0, torch.tensor(indices_to_keep))
 
         print(self.new_dataset.__len__())
 
@@ -129,7 +146,7 @@ class ActiveLearning:
 
         criterion = ml_nn_loss2
         optimizer = optim.Adam(model.parameters(), lr=args.lr)
-        al_data_loader = DataLoader(self.new_dataset, batch_size=30, shuffle=True)
+        al_data_loader = DataLoader(self.new_dataset, batch_size=args.active_batch_size, shuffle=True)
         for epoch in range(epochs):
             running_loss = 0.0
             for data in al_data_loader:
@@ -142,8 +159,4 @@ class ActiveLearning:
                 running_loss += loss.item()
             epoch_loss = running_loss / len(al_data_loader)
             print(f"Epoch {epoch+1}, Loss: {epoch_loss}")
-
-
-
-
 

@@ -1,107 +1,149 @@
-from data import get_data
-from loss import *
-import csv
-import os
-from torch import optim
-from torch.utils.data import DataLoader
+from datasets import load_dataset
+
+dataset = load_dataset('knowledgator/events_classification_biotech')
+for split_name, split in dataset.items():
+    print(f"Split: {split_name}, Num Examples: {len(split)}")
+
+classes = [class_ for class_ in dataset['train'].features['label 1'].names if class_]
+class2id = {class_: id for id, class_ in enumerate(classes)}
+id2class = {id: class_ for class_, id in class2id.items()}
+
+from transformers import AutoTokenizer
+
+model_path = 'microsoft/deberta-v3-small'
+
+tokenizer = AutoTokenizer.from_pretrained(model_path)
+
+# Vocabulary size
+vocab_size = tokenizer.vocab_size
+print("Vocabulary size:", vocab_size)
+
+# Embedding dimension
+embedding_dim = tokenizer.model_max_length
+print("Embedding dimension:", embedding_dim)
+
+# Special tokens
+bos_token = tokenizer.bos_token
+eos_token = tokenizer.eos_token
+pad_token = tokenizer.pad_token
+print("BOS token:", bos_token)
+print("EOS token:", eos_token)
+print("PAD token:", pad_token)
+
+# Tokenizer type
+tokenizer_type = type(tokenizer).__name__
+print("Tokenizer type:", tokenizer_type)
+
+
+def preprocess_function(example):
+    text = f"{example['title']}.\n{example['content']}"
+    all_labels = example['all_labels']
+    labels = [0. for i in range(len(classes))]
+    for label in all_labels:
+        label_id = class2id[label]
+        labels[label_id] = 1.
+
+    example = tokenizer(text, truncation=True)
+    example['labels'] = labels
+    return example
+
+
+tokenized_dataset = dataset.map(preprocess_function)
+
+for split_name, split in tokenized_dataset.items():
+    print(f"Split: {split_name}, Num Examples: {len(split)}")
+
+# Create an iterator for the items of tokenized_dataset
+iterator = iter(tokenized_dataset.items())
+
+# Get the first item from the iterator
+first_item = next(iterator)
+
+# Print the first item
+print("First item of tokenized_dataset.items():", first_item)
+
+# Get the first example from the dataset
+first_example = tokenized_dataset['train'][0]
+
+# Extract the tokenized input representations
+input_ids = first_example['input_ids']
+token_type_ids = first_example['token_type_ids']
+attention_mask = first_example['attention_mask']
+
+# Print the tokenized input representations
+print("Input IDs:", input_ids)
+print("Token Type IDs:", token_type_ids)
+print("Attention Mask:", attention_mask)
+
+# Initialize lists to store feature lengths and label lengths
+feature_lengths = []
+label_lengths = []
+
+# Iterate over the tokenized dataset and calculate the lengths
+for example in tokenized_dataset['train']:
+    # Get the length of features
+    feature_length = len(example['input_ids'])  # Assuming 'input_ids' is used for features
+    feature_lengths.append(feature_length)
+
+    # Get the length of labels
+    label_length = len(example['labels'])  # Assuming 'labels' is used for labels
+    label_lengths.append(label_length)
+
+# Calculate the average length of features and labels
+avg_feature_length = sum(feature_lengths) / len(feature_lengths)
+avg_label_length = sum(label_lengths) / len(label_lengths)
+
+# Print the results
+print("Average feature length:", avg_feature_length)
+print("Average label length:", avg_label_length)
+
+from transformers import DataCollatorWithPadding
+
+data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
+
+import evaluate
 import numpy as np
-import torch
-from config import get_args
-from loss import *
-from test import add_res
-from pretrain import train
-from util import *
-from architecture import *
-from data import get_data
-from active_train import ActiveLearning, get_new_resnet18
 
-args = get_args()
-
-check_path = './result/data.csv'
-if os.path.exists(check_path):
-    os.remove(check_path)
-
-fname = args.data_name
-fnamesub = fname + '.csv'
-header = ['K@1', 'K@2', 'micro_AUC', 'macro_AUC']
-
-with open('./result/' + fnamesub, 'w') as f:
-    writer_obj = csv.writer(f)
-    writer_obj.writerow(header)
-
-# get GPU or CPU
-device = get_device()
-
-# for i in range(10, 0, -1):
-results = []
-
-# get Dataloader
-train_data, pool_data, test_data = get_data(train_ratio=args.train, pool_ratio=args.pool,test_ratio=args.test)
-
-num_labels = test_data.label_length()
-# print(test_label_length)
-out_size = num_labels
-num_features = train_data.x.size(1)
-
-linear_model = ResNet18(in_size=num_features, hidden_size=args.m_hidden, out_size=out_size, embed=args.m_embed,
-                        drop_p=args.m_drop_p, activation=args.m_activation).to(device)
-
-train_model = linear_model
-
-# train_data.change_x_data(check_cv_and_preprocess_data(train_model, train_data))
-
-train_dataloader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
-test_dataloader = DataLoader(test_data, batch_size=len(test_data), shuffle=False)
-dataloaders = {
-    "train": train_dataloader,
-    "val": test_dataloader,
-}
-
-# check total parameters of this model
-pytorch_total_params = sum(p.numel() for p in train_model.parameters())
-print(" Number of Parameters: ", pytorch_total_params)
-
-optimizer = optim.Adam(train_model.parameters(), lr=args.lr, weight_decay=args.wd)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, eta_min=0)
-criterion = ml_nn_loss2  # ml_nn_loss2
-
-pretrain_model, loss_opt = train(train_model,
-                                 dataloaders,
-                                 criterion=criterion,
-                                 optimizer=optimizer,
-                                 scheduler=scheduler,
-                                 num_epochs=args.active_epochs,
-                                 device_train=None,
-                                 num_l=num_labels,
-                                 fname=fnamesub
-                                 )
+clf_metrics = evaluate.combine(["accuracy", "f1", "precision", "recall"])
 
 
-pretrain_model.eval()
-results += add_res(pretrain_model, test_data.get_x(), test_data.get_y(), device=device)
-print(results)
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
 
 
-with open('./result/' + fnamesub, 'a') as f:
-    writer_obj = csv.writer(f)
-    writer_obj.writerow(results)
+def compute_metrics(eval_pred):
+    predictions, labels = eval_pred
+    predictions = sigmoid(predictions)
+    predictions = (predictions > 0.5).astype(int).reshape(-1)
+    return clf_metrics.compute(predictions=predictions, references=labels.astype(int).reshape(-1))
 
 
-active_learning = ActiveLearning(pool_data)
+from transformers import AutoModelForSequenceClassification, TrainingArguments, Trainer
 
-for i in range(args.active_rounds, 0, -1):
+model = AutoModelForSequenceClassification.from_pretrained(
 
-    active_model = get_new_resnet18()
+    model_path, num_labels=len(classes),
+    id2label=id2class, label2id=class2id,
+    problem_type="multi_label_classification")
 
-    active_learning.select_instances_random(n_instances=args.active_instances)
+training_args = TrainingArguments(
 
-    active_learning.train_model(active_model)
+    output_dir="my_awesome_model",
+    learning_rate=2e-5,
+    per_device_train_batch_size=3,
+    per_device_eval_batch_size=3,
+    num_train_epochs=2,
+    weight_decay=0.01,
+    evaluation_strategy="epoch",
+    save_strategy="epoch",
+    load_best_model_at_end=True,
+)
 
-    results = add_res(pretrain_model, test_data.get_x(), test_data.get_y(), device=device)
+trainer = Trainer(model=model, args=training_args, train_dataset=tokenized_dataset["train"],
+                  eval_dataset=tokenized_dataset["test"],
+                  tokenizer=tokenizer,
+                  data_collator=data_collator,
+                  compute_metrics=compute_metrics)
 
-    print(results)
-
-    with open('./result/' + fnamesub, 'a') as f:
-        writer_obj = csv.writer(f)
-        writer_obj.writerow(results)
+trainer.train()
 
