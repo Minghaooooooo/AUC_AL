@@ -33,7 +33,7 @@ device = get_device()
 results = []
 
 # get Dataloader
-train_data, pool_data, test_data = get_data(train_ratio=args.train, pool_ratio=args.pool,test_ratio=args.test)
+train_data, pool_data, test_data = get_data(train_ratio=args.train, pool_ratio=args.pool, test_ratio=args.test)
 
 num_labels = test_data.label_length()
 # print(test_label_length)
@@ -89,7 +89,7 @@ model_opt.eval()
 results += add_res(model_opt, test_data.get_x(), test_data.get_y(), device=device)
 print(results)
 
-
+# documentation
 with open('./result/' + fnamesub, 'a') as f:
     writer_obj = csv.writer(f)
     writer_obj.writerow(results)

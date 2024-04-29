@@ -36,26 +36,36 @@ class ActiveLearning:
         self.dataset = pooling_data
         self.new_dataset = training_data
 
-    def select_instances_mi(self, model, n_instances):
-        # Calculate the predictions for all instances in the pool dataset
-        with torch.no_grad():
-            logits = model(self.dataset.x)
-            probs = F.softmax(logits, dim=1)
+    def select_instances_dropout(self, model, n_instances, n_samples=10):
+        # List to store predictions for each instance
+        all_predictions = []
 
-        # Calculate the mutual information for each instance
-        mutual_info_list = []
-        for i in range(len(self.dataset)):
-            instance_probs = probs[i]
-            instance_labels = self.dataset.y[i]
-            p_xy = torch.sum(instance_probs * instance_labels)
-            p_x = torch.sum(instance_probs)
-            p_y = torch.sum(instance_labels)
-            mutual_info = p_xy * torch.log(p_xy / (p_x * p_y) + 1e-9)  # Adding a small value to avoid division by zero
-            mutual_info_list.append(mutual_info.item())
+        # Perform inference with dropout enabled multiple times
+        for _ in range(n_samples):
+            with torch.no_grad():
+                # Enable dropout during inference
+                model.train()
 
-        # Select the instances with the highest mutual information
-        mutual_info_tensor = torch.tensor(mutual_info_list)
-        _, selected_indices = torch.topk(mutual_info_tensor, k=n_instances, largest=True)
+                # Forward pass to get predictions
+                logits = model(self.dataset.x)
+                probs = torch.sigmoid(logits)
+
+            all_predictions.append(probs.unsqueeze(0))  # Store predictions for each sample
+
+        print(len(all_predictions))
+
+        # Concatenate predictions along the sample dimension
+        all_predictions = torch.cat(all_predictions, dim=0)
+
+        print(all_predictions.shape)
+
+        # Calculate uncertainty as the variance across samples for each instance
+        uncertainty = torch.var(all_predictions, dim=0).sum(dim=1)
+
+        print('uncertainty', uncertainty.shape)
+
+        # Select the instances with the highest uncertainty
+        _, selected_indices = torch.topk(uncertainty, n_instances)
 
         # Get the corresponding instances and labels
         new_training_data = self.dataset.x[selected_indices]
@@ -69,61 +79,55 @@ class ActiveLearning:
         indices_to_keep = [i for i in range(len(self.dataset)) if i not in selected_indices]
         self.dataset.x = torch.index_select(self.dataset.x, 0, torch.tensor(indices_to_keep))
         self.dataset.y = torch.index_select(self.dataset.y, 0, torch.tensor(indices_to_keep))
-
-    def select_instances_random(self, n_instances):
-
-        # Get the indices of all instances in the dataset
-        all_indices = torch.arange(len(self.dataset))
-
-        # Shuffle the indices
-        shuffled_indices = all_indices.tolist()
-        random.shuffle(shuffled_indices)
-
-        # Select the first n_instances shuffled indices
-        selected_indices = shuffled_indices[:n_instances]
-
-        # Get the corresponding instances and labels
-        new_training_data = self.dataset.x[selected_indices]
-        new_training_labels = self.dataset.y[selected_indices]
-
-        # Append the new instances to the new dataset
-        self.new_dataset.x = torch.cat([self.new_dataset.x, new_training_data])
-        self.new_dataset.y = torch.cat([self.new_dataset.y, new_training_labels])
-
-        # Remove the selected instances from the pool dataset
-        indices_to_keep = [i for i in range(len(self.dataset)) if i not in selected_indices]
-        self.dataset.x = torch.index_select(self.dataset.x, 0, torch.tensor(indices_to_keep).to(torch.int64))
-        self.dataset.y = torch.index_select(self.dataset.y, 0, torch.tensor(indices_to_keep).to(torch.int64))
-
-        print(self.new_dataset.__len__())
 
     def select_instances_entropy(self, model, n_instances):
         # Calculate the entropy of predictions for all instances in the pool dataset
         with torch.no_grad():
             logits = model(self.dataset.x)
-            print("Logits shape:", logits.shape)
+            # print("Logits shape:", logits.shape)
             probs = torch.sigmoid(logits)  # Using sigmoid instead of softmax
             # probs = F.softmax(logits, dim=1)
 
-
-        # # Calculate the margin for each instance
+        # # margin is not suitable for multi-lable classification
         # margins, _ = torch.topk(probs, 2, dim=1)
         # margin = margins[:, 0] - margins[:, 1]  # Difference between top two probabilities
         # _, selected_indices = torch.topk(margin, n_instances)
+
+        # # multiple margin
+        # # Calculate the number of positive labels in new_training_data
+        # avg_num_pos_labels = torch.mean(torch.sum(self.new_dataset.y, dim=1)).item()
+        # print(avg_num_pos_labels)
+        # # Calculate the top m margins for each instance0
+        # margins, _ = torch.topk(probs, int(avg_num_pos_labels), dim=1)
+        # margins_diff = margins[:, :-1] - margins[:, 1:]
+        # # Calculate the mean margin across labels for each instance
+        # xi = int(avg_num_pos_labels/2)
+        # # Create a tensor representing the indices of margins_diff
+        # indices = torch.arange(margins_diff.size(1), dtype=torch.float).unsqueeze(0)
+        # # Compute the power term for each element
+        # power_term = xi - indices
+        # # Compute margins_diff multiplied by e to the power of (xi - index)
+        # margins_diff_exp = margins_diff * torch.exp(power_term)
+        # print('margin_diff_exp.shape', margins_diff_exp.shape)
+        # sum_margin = torch.sum(margins_diff_exp, dim=1)
+        # print('mean_margin', sum_margin.shape)
+        # # Select the instances with the highest mean margin
+        # _, selected_indices = torch.topk(sum_margin, n_instances, largest=False)
+        # # _, selected_indices = torch.topk(margin, n_instances, largest=True)
 
             # confidences, _ = torch.max(probs, dim=1)
         #     least_confidence = 1 - confidences  # Confidence is inversely related to uncertainty
         # _, selected_indices = torch.topk(least_confidence, n_instances)
 
-            # entropy select
-            entropy = -torch.sum(probs * torch.log(probs), dim=1)
-        _, selected_indices = torch.topk(entropy, n_instances)  # , largest=False)
+        #     # entropy select
+        #     entropy = -torch.sum(probs * torch.log(probs), dim=1)
+        # _, selected_indices = torch.topk(entropy, n_instances)  # , largest=False)
 
-        # # random select
-        # total_instances = len(self.dataset)
-        # indices = list(range(total_instances))
-        # random.shuffle(indices)
-        # selected_indices = indices[:n_instances]
+        # random select
+        total_instances = len(self.dataset)
+        indices = list(range(total_instances))
+        random.shuffle(indices)
+        selected_indices = indices[:n_instances]
 
         # Get the corresponding instances and labels
         new_training_data = self.dataset.x[selected_indices]
@@ -139,8 +143,7 @@ class ActiveLearning:
         self.dataset.y = torch.index_select(self.dataset.y, 0, torch.tensor(indices_to_keep))
 
         print(self.new_dataset.__len__())
-
-        #  return self.new_dataset, self.dataset
+        print(self.dataset.__len__())
 
     def train_model(self, model, epochs=args.active_epochs):
 

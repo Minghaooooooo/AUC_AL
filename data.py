@@ -13,8 +13,8 @@ print('Using {} device'.format(device))
 
 def read_dataset(data_name):
     # read npy files from folder dataMats
-    x_path = './data/' + data_name + '_X.npy'
-    y_path = './data/' + data_name + '_Y.npy'
+    x_path = 'D:/Pycharm Project/AUC_AL/data/' + data_name + '_X.npy'
+    y_path = 'D:/Pycharm Project/AUC_AL/data/' + data_name + '_Y.npy'
     x = np.load(x_path)
     y = np.load(y_path)
     return x, y

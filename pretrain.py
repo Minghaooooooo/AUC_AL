@@ -114,15 +114,15 @@ def train(model,
         )
     )
 
-    # Calculate average AUC scores
-    avg_micro_auc = sum(micro_auc_list) / len(micro_auc_list)
-    avg_macro_auc = sum(macro_auc_list) / len(macro_auc_list)
+    # # Calculate average AUC scores
+    # avg_micro_auc = sum(micro_auc_list) / len(micro_auc_list)
+    # avg_macro_auc = sum(macro_auc_list) / len(macro_auc_list)
 
     # Write results to CSV file
-    auc_result = [avg_micro_auc, avg_macro_auc]
-    with open('./result/' + fname, 'a') as f:
-        writer_obj = csv.writer(f)
-        writer_obj.writerow(auc_result)
+    # auc_result = [avg_micro_auc, avg_macro_auc]
+    # with open('./result/' + fname, 'a') as f:
+    #     writer_obj = csv.writer(f)
+    #     writer_obj.writerow(auc_result)
 
     # metrics = (losses, accuracy)
     return model, loss_list
