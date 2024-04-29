@@ -1,3 +1,5 @@
+import time
+
 from data import get_data
 from loss import *
 import csv
@@ -23,7 +25,7 @@ if os.path.exists(check_path):
 
 fname = args.data_name
 fnamesub = fname + '.csv'
-header = ['K@1', 'K@2', 'micro_AUC', 'macro_AUC']
+header = ['K@1', 'K@3', 'K@5', 'micro_AUC', 'macro_AUC']
 
 with open('./result/' + fnamesub, 'w') as f:
     writer_obj = csv.writer(f)
@@ -81,27 +83,35 @@ pretrain_model.eval()
 results += add_res(pretrain_model, test_data.get_x(), test_data.get_y(), device=device)
 print(results)
 
-
-with open('./result/' + fnamesub, 'a') as f:
-    writer_obj = csv.writer(f)
-    writer_obj.writerow(results)
+if results:
+    with open('./result/' + fnamesub, 'a', newline='') as f:  # Add newline='' to avoid extra empty lines
+        writer_obj = csv.writer(f)
+        writer_obj.writerow(results)
 
 
 active_learning = ActiveLearning(train_data, pool_data)
 
-for i in range(args.active_rounds, 0, -1):
 
+for i in range(args.active_rounds, 0, -1):
+    since = time.time()
     active_model = get_new_resnet18()
 
     active_learning.select_instances_entropy(active_model, n_instances=args.active_instances)
 
     active_learning.train_model(active_model)
 
-    results = add_res(active_model, test_data.get_x(), test_data.get_y(), device=device)
+    al_results = add_res(active_model, test_data.get_x(), test_data.get_y(), device=device)
+    time_elapsed = time.time() - since
+    print(
+        'There are ', i-1, "round of active learning left. This round complete in {:.0f}m {:.0f}s".format(
+            time_elapsed // 60, time_elapsed % 60
+        )
+    )
+    print(al_results)
 
-    print(results)
+    if al_results:
+        with open('./result/' + fnamesub, 'a', newline='') as f:  # Add newline='' to avoid extra empty lines
+            writer_obj = csv.writer(f)
+            writer_obj.writerow(al_results)
 
-    with open('./result/' + fnamesub, 'a') as f:
-        writer_obj = csv.writer(f)
-        writer_obj.writerow(results)
 
