@@ -8,7 +8,11 @@ get_data(train_ratio=args.train, pool_ratio=args.pool,test_ratio=args.test)
                         drop_p=args.m_drop_p, activation=args.m_activation).to(device)
    baseline backbone model:BernoulliMixture(in_size=num_features, hidden_size=32, out_size=out_size,
                        embed_length=args.m_embed, drop_p=args.m_drop_p, activation=nn.ELU()).to(device)
-3. train model: 
+   our AUC optimization loss function: criterion = ml_nn_loss2
+
+   baseline backbone loss: criterion = ml_nn_loss
+   
+4. train model: 
 model_opt, loss_opt = train(train_model,
                             dataloaders,
                             criterion=criterion,
@@ -19,8 +23,9 @@ model_opt, loss_opt = train(train_model,
                             num_l=num_labels,
                             fname=fnamesub
                             )
-4. evaluate model:
+5. evaluate model:
    model_opt.eval()
+   
 5.visualize and document:
 results += add_res(model_opt, test_data.get_x(), test_data.get_y(), device=device)
 print(results)
