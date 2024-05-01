@@ -6,6 +6,7 @@ get_data(train_ratio=args.train, pool_ratio=args.pool,test_ratio=args.test)
 2. model:
    our backbone model: ResNet18(in_size=num_features, hidden_size=args.m_hidden, out_size=out_size, embed=args.m_embed,
                         drop_p=args.m_drop_p, activation=args.m_activation).to(device)
+   
    baseline backbone model:BernoulliMixture(in_size=num_features, hidden_size=32, out_size=out_size,
                        embed_length=args.m_embed, drop_p=args.m_drop_p, activation=nn.ELU()).to(device)
    
@@ -13,7 +14,7 @@ get_data(train_ratio=args.train, pool_ratio=args.pool,test_ratio=args.test)
 
    baseline backbone loss: criterion = ml_nn_loss
    
-3. train model: 
+4. train model: 
 model_opt, loss_opt = train(train_model,
                             dataloaders,
                             criterion=criterion,
@@ -25,10 +26,10 @@ model_opt, loss_opt = train(train_model,
                             fname=fnamesub
                             )
    
-4. evaluate model:
+5. evaluate model:
    model_opt.eval()
    
-5. visualize and document:
+6. visualize and document:
 results += add_res(model_opt, test_data.get_x(), test_data.get_y(), device=device)
 print(results)
 with open('./result/' + fnamesub, 'a') as f:
