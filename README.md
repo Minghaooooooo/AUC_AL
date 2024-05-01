@@ -13,7 +13,7 @@ get_data(train_ratio=args.train, pool_ratio=args.pool,test_ratio=args.test)
 
    baseline backbone loss: criterion = ml_nn_loss
    
-4. train model: 
+3. train model: 
 model_opt, loss_opt = train(train_model,
                             dataloaders,
                             criterion=criterion,
@@ -25,10 +25,10 @@ model_opt, loss_opt = train(train_model,
                             fname=fnamesub
                             )
    
-5. evaluate model:
+4. evaluate model:
    model_opt.eval()
    
-6. visualize and document:
+5. visualize and document:
 results += add_res(model_opt, test_data.get_x(), test_data.get_y(), device=device)
 print(results)
 with open('./result/' + fnamesub, 'a') as f:
