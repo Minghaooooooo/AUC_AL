@@ -146,6 +146,7 @@ class SurrogateAUCLossU1(nn.Module):
         y_true = y_true.view(batch_size, -1)  # Reshaping the tensor to have a batch size and inferred second dimension
         y_pred = y_pred.view(batch_size, -1)
 
+
         pos_mask = (y_true == 1)
         neg_mask = (y_true == 0)
 
@@ -171,6 +172,8 @@ class SurrogateAUCLossNatural(nn.Module):
         batch_size = y_true.size(0)
         y_true = y_true.view(batch_size, -1)  # Reshaping the tensor to have a batch size and inferred second dimension
         y_pred = y_pred.view(batch_size, -1)
+        # print('y_true:', y_true.shape)
+        # print('y_pred', y_pred.shape)
 
         pos_mask = (y_true == 1)
         neg_mask = (y_true == 0)

@@ -20,12 +20,12 @@ def train(model,
           num_epochs=None,
           device_train=None,
           num_l=None,
-          fname=None
+          fname=None,
           ):
     since = time.time()
-
-    if not device_train:
-        device_train = get_device()
+    print('Using {} device'.format(device_train))
+    # if not device_train:
+    #     device_train = get_device()
 
     best_model_wts = copy.deepcopy(model.state_dict())
     loss_list = []
@@ -50,8 +50,8 @@ def train(model,
 
                 for i, (inputs, labels) in enumerate(dataloaders[phase]):
                     # inputs = preprocess_data(inputs)
-                    inputs = inputs.to(device_train)
-                    labels = labels.to(device_train)
+                    inputs = inputs
+                    labels = labels
 
                     # zero the parameter gradients
                     optimizer.zero_grad()
@@ -59,7 +59,7 @@ def train(model,
                     # forward
                     # track history if only in train
                     with torch.set_grad_enabled(phase == "train"):
-                        y = labels.to(device_train)
+                        y = labels
                         # print('inputs',inputs)
                         # print('labels',labels)
                         # inputs = inputs.to(torch.int64).to(device_train)

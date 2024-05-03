@@ -23,12 +23,13 @@ def get_args():
     parser.add_argument('--m_drop_p', type=float, default=0.1, help="Dropout ratio")
 
     # dataloader setting
-    parser.add_argument('--batch_size', type=int, default=64, help="Seed for the code")
+    # parser.add_argument('--batch_size', type=int, default=64, help="Seed for the code")
+    parser.add_argument('--batch_size', type=int, default=32, help="Seed for the code")
 
     # optimizer settings
     parser.add_argument('--lr', type=float, default=1e-4, help="Learning rate")  # 1e-4
     parser.add_argument('--wd', type=float, default=0, help="Weight decay")
-    parser.add_argument('--pretrain_epochs', type=int, default=20, help="Number of weights pretraining epochs")
+    parser.add_argument('--pretrain_epochs', type=int, default=60, help="Number of weights pretraining epochs")
 
     # active learning setting
     parser.add_argument('--active_rounds', type=int, default=20, help="rounds of active learning")

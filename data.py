@@ -8,7 +8,6 @@ from architecture import *
 
 args = get_args()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-print('Using {} device'.format(device))
 
 
 def read_dataset(data_name):
@@ -128,9 +127,9 @@ def get_data(train_ratio, pool_ratio, test_ratio):
     xtest = preprocess_data(xtest)
     xcan = preprocess_data(xcan)
 
-    train_data = MyDataset(xtrain.to(device),  ytrain.to(device))
-    test_data = MyDataset(xtest.to(device),  ytest.to(device))
-    pool_data = MyDataset(xcan.to(device), ycan.to(device))
+    train_data = MyDataset(xtrain,  ytrain)
+    test_data = MyDataset(xtest,  ytest)
+    pool_data = MyDataset(xcan, ycan)
     return train_data, pool_data, test_data
 
 

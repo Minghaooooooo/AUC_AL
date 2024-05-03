@@ -13,9 +13,6 @@ from einops.layers.torch import Rearrange
 from timm.models.vision_transformer import VisionTransformer
 from transformers.models import vit
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-print('Using {} device'.format(device))
-
 
 class ResNet18(nn.Module):
     def __init__(self, in_size, hidden_size, out_size, embed,

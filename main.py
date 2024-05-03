@@ -29,7 +29,6 @@ with open('./result/' + fnamesub, 'w') as f:
 
 # get GPU or CPU
 device = get_device()
-
 results = []
 
 # get Dataloader
@@ -85,6 +84,7 @@ model_opt, loss_opt = train(train_model,
                             num_l=num_labels,
                             fname=fnamesub
                             )
+
 model_opt.eval()
 results += add_res(model_opt, test_data.get_x(), test_data.get_y(), device=device)
 print(results)

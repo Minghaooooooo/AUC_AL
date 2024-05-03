@@ -7,16 +7,17 @@ from sklearn import metrics
 from sklearn.metrics import mean_squared_error, f1_score, roc_auc_score, accuracy_score
 import csv
 from config import get_args
-from data import preprocess_data
 
 
 def add_res(model_opt, x_test, y_test, n=None,
             xtest=None, ytest=None, device=None):
     if xtest is None:
-        xtest = x_test.clone().detach()
-        ytest = y_test.clone().detach().requires_grad_(True)
+        xtest = x_test.clone().detach().cpu()
+        ytest = y_test.clone().detach().cpu().requires_grad_(True)
 
-    output = model_opt(xtest.float().to(device))
+    model_opt = model_opt.cpu()
+    output = model_opt(xtest.float())
+
     ground_truth = ytest
 
     # mse = mean_squared_error(ground_truth.detach().cpu().numpy(), output.detach().cpu().numpy())

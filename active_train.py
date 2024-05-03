@@ -15,7 +15,6 @@ from data import get_data, MyDataset
 import torch.nn.functional as F
 
 # get GPU or CPU
-device = get_device()
 args = get_args()
 train_data, pool_data, test_data = get_data(train_ratio=args.train, pool_ratio=args.pool,test_ratio=args.test)
 
@@ -27,14 +26,15 @@ num_features = train_data.x.size(1)
 
 def get_new_resnet18():
     active_model = ResNet18(in_size=num_features, hidden_size=args.m_hidden, out_size=out_size, embed=args.m_embed,
-                            drop_p=args.m_drop_p, activation=args.m_activation).to(device)
+                            drop_p=args.m_drop_p, activation=args.m_activation)
     return active_model
 
 
 class ActiveLearning:
-    def __init__(self, training_data: MyDataset, pooling_data: MyDataset):
+    def __init__(self, training_data: MyDataset, pooling_data: MyDataset, device_al_train):
         self.dataset = pooling_data
         self.new_dataset = training_data
+        self.device_al_train = device_al_train
 
     def select_instances_dropout(self, model, n_instances, n_samples=10):
         # List to store predictions for each instance
@@ -47,7 +47,7 @@ class ActiveLearning:
                 model.train()
 
                 # Forward pass to get predictions
-                logits = model(self.dataset.x)
+                logits = model(self.dataset.x.to(self.device_al_train))
                 probs = torch.sigmoid(logits)
 
             all_predictions.append(probs.unsqueeze(0))  # Store predictions for each sample
@@ -83,7 +83,8 @@ class ActiveLearning:
     def select_instances_entropy(self, model, n_instances):
         # Calculate the entropy of predictions for all instances in the pool dataset
         with torch.no_grad():
-            logits = model(self.dataset.x)
+            model = model.cpu()
+            logits = model(self.dataset.x.cpu())
             # print("Logits shape:", logits.shape)
             probs = torch.sigmoid(logits)  # Using sigmoid instead of softmax
             # probs = F.softmax(logits, dim=1)
@@ -93,27 +94,27 @@ class ActiveLearning:
         # margin = margins[:, 0] - margins[:, 1]  # Difference between top two probabilities
         # _, selected_indices = torch.topk(margin, n_instances)
 
-        # # multiple margin
-        # # Calculate the number of positive labels in new_training_data
-        # avg_num_pos_labels = torch.mean(torch.sum(self.new_dataset.y, dim=1)).item()
-        # print(avg_num_pos_labels)
-        # # Calculate the top m margins for each instance0
-        # margins, _ = torch.topk(probs, int(avg_num_pos_labels), dim=1)
-        # margins_diff = margins[:, :-1] - margins[:, 1:]
-        # # Calculate the mean margin across labels for each instance
-        # xi = int(avg_num_pos_labels/2)
-        # # Create a tensor representing the indices of margins_diff
-        # indices = torch.arange(margins_diff.size(1), dtype=torch.float).unsqueeze(0)
-        # # Compute the power term for each element
-        # power_term = xi - indices
-        # # Compute margins_diff multiplied by e to the power of (xi - index)
-        # margins_diff_exp = margins_diff * torch.exp(power_term)
-        # print('margin_diff_exp.shape', margins_diff_exp.shape)
-        # sum_margin = torch.sum(margins_diff_exp, dim=1)
-        # print('mean_margin', sum_margin.shape)
-        # # Select the instances with the highest mean margin
-        # _, selected_indices = torch.topk(sum_margin, n_instances, largest=False)
-        # # _, selected_indices = torch.topk(margin, n_instances, largest=True)
+        # multiple margin
+        # Calculate the number of positive labels in new_training_data
+        avg_num_pos_labels = torch.mean(torch.sum(self.new_dataset.y, dim=1)).item()
+        print(avg_num_pos_labels)
+        # Calculate the top m margins for each instance0
+        margins, _ = torch.topk(probs, int(avg_num_pos_labels), dim=1)
+        margins_diff = margins[:, :-1] - margins[:, 1:]
+        # Calculate the mean margin across labels for each instance
+        xi = int(avg_num_pos_labels/2)
+        # Create a tensor representing the indices of margins_diff
+        indices = torch.arange(margins_diff.size(1), dtype=torch.float).unsqueeze(0)
+        # Compute the power term for each element
+        power_term = xi - indices
+        # Compute margins_diff multiplied by e to the power of (xi - index)
+        margins_diff_exp = margins_diff * torch.exp(power_term)
+        print('margin_diff_exp.shape', margins_diff_exp.shape)
+        sum_margin = torch.sum(margins_diff_exp, dim=1)
+        print('mean_margin', sum_margin.shape)
+        # Select the instances with the highest mean margin
+        _, selected_indices = torch.topk(sum_margin, n_instances, largest=False)
+        # _, selected_indices = torch.topk(margin, n_instances, largest=True)
 
             # confidences, _ = torch.max(probs, dim=1)
         #     least_confidence = 1 - confidences  # Confidence is inversely related to uncertainty
@@ -123,11 +124,11 @@ class ActiveLearning:
         #     entropy = -torch.sum(probs * torch.log(probs), dim=1)
         # _, selected_indices = torch.topk(entropy, n_instances)  # , largest=False)
 
-        # random select
-        total_instances = len(self.dataset)
-        indices = list(range(total_instances))
-        random.shuffle(indices)
-        selected_indices = indices[:n_instances]
+        # # random select
+        # total_instances = len(self.dataset)
+        # indices = list(range(total_instances))
+        # random.shuffle(indices)
+        # selected_indices = indices[:n_instances]
 
         # Get the corresponding instances and labels
         new_training_data = self.dataset.x[selected_indices]
@@ -146,17 +147,18 @@ class ActiveLearning:
         print(self.dataset.__len__())
 
     def train_model(self, model, epochs=args.active_epochs):
-
+        model = model.to(self.device_al_train)
         criterion = ml_nn_loss2
         optimizer = optim.Adam(model.parameters(), lr=args.lr)
         al_data_loader = DataLoader(self.new_dataset, batch_size=args.active_batch_size, shuffle=True)
         for epoch in range(epochs):
             running_loss = 0.0
-            for data in al_data_loader:
-                inputs, labels = data
+            for (inputs, labels) in al_data_loader:
+                inputs = inputs.to(self.device_al_train)
+                labels = labels.to(self.device_al_train)
                 optimizer.zero_grad()
                 batch_outputs = model(inputs)
-                loss = criterion(labels, batch_outputs, model, device=device)
+                loss = criterion(labels, batch_outputs, model, device=self.device_al_train)
                 loss.backward()
                 optimizer.step()
                 running_loss += loss.item()
