@@ -18,7 +18,7 @@ class ResNet18(nn.Module):
     def __init__(self, in_size, hidden_size, out_size, embed,
                  drop_p, activation):
         super(ResNet18, self).__init__()
-        self.resnet = models.resnet18(pretrained=True)
+        self.resnet = models.resnet18(pretrained=False)
         # Freeze the parameters of the ResNet-18 backbone
         for param in self.resnet.parameters():
             param.requires_grad = True

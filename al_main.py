@@ -39,7 +39,7 @@ device = get_device()
 results = []
 
 # get Dataloader
-train_data, pool_data, test_data = get_data(train_ratio=args.train, pool_ratio=args.pool,test_ratio=args.test)
+train_data, pool_data, test_data, train_origin, pool_origin = get_data(train_ratio=args.train, pool_ratio=args.pool,test_ratio=args.test)
 
 num_labels = test_data.label_length()
 # print(test_label_length)
@@ -50,6 +50,7 @@ linear_model = ResNet18(in_size=num_features, hidden_size=args.m_hidden, out_siz
                         drop_p=args.m_drop_p, activation=args.m_activation).to(device)
 
 train_model = linear_model
+
 #
 # # train_data.change_x_data(check_cv_and_preprocess_data(train_model, train_data))
 #
@@ -88,13 +89,13 @@ train_model = linear_model
 #         writer_obj = csv.writer(f)
 #         writer_obj.writerow(results)
 
-active_learning = ActiveLearning(train_data, pool_data, device_al_train=device)
+active_learning = ActiveLearning(train_origin, pool_origin, train_data, pool_data, device_al_train=device)
 
 for i in range(args.active_rounds, 0, -1):
     since = time.time()
     active_model = get_new_resnet18().to(device)
 
-    active_learning.select_instances_entropy(active_model, n_instances=args.active_instances)
+    active_learning.select_instances(active_model, n_instances=args.active_instances)
 
     active_learning.train_model(active_model)
 
@@ -111,3 +112,4 @@ for i in range(args.active_rounds, 0, -1):
         with open('./result/' + fnamesub, 'a', newline='') as f:  # Add newline='' to avoid extra empty lines
             writer_obj = csv.writer(f)
             writer_obj.writerow(al_results)
+

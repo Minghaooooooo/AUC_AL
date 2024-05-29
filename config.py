@@ -5,11 +5,11 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=2,
                         help="Seed for the code")
-    parser.add_argument('--data_name', type=str, default="bibTex",  # Delicious
+    parser.add_argument('--data_name', type=str, default="Delicious",  # Delicious, bibTex,
                         help="Name of Dataset")
     # parser.add_argument('--data_name', type=str, default="bibTex",
     #                     help="Name of Dataset")
-    parser.add_argument('--train', type=float, default=0.1,  # 0.05
+    parser.add_argument('--train', type=float, default=0.005,  # 0.05
                         help="train size")  # 0.01
     parser.add_argument('--pool', type=float, default=0.7,  # 0.75
                         help="pool size")
@@ -32,11 +32,12 @@ def get_args():
     parser.add_argument('--pretrain_epochs', type=int, default=60, help="Number of weights pretraining epochs")
 
     # active learning setting
-    parser.add_argument('--active_rounds', type=int, default=20, help="rounds of active learning")
-    parser.add_argument('--active_instances', type=int, default=30, help="Number of instances for each active "
+    parser.add_argument('--active_rounds', type=int, default=10, help="rounds of active learning")
+    parser.add_argument('--active_instances', type=int, default=100, help="Number of instances for each active "  # 30
                                                                           "learning round")
-    parser.add_argument('--active_epochs', type=int, default=30, help="number of active learning epochs")
-    parser.add_argument('--active_batch_size', type=int, default=10, help="number of active learning epochs")
+    parser.add_argument('--active_epochs', type=int, default=80, help="number of active learning epochs")
+    parser.add_argument('--active_batch_size', type=int, default=30, help="number of active learning epochs")
 
     args = parser.parse_args()
     return args
+
