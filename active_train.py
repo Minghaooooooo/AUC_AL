@@ -31,7 +31,6 @@ def get_new_resnet18():
     return active_model
 
 
-
 class ActiveLearning:
     def __init__(self, train_origin, pool_origin, training_data: MyDataset, pooling_data: MyDataset, device_al_train):
         self.pool_dataset = pooling_data
@@ -57,11 +56,11 @@ class ActiveLearning:
         #     entropy = -torch.sum(probs * torch.log(probs), dim=1)
         # _, selected_indices = torch.topk(entropy, n_instances)  # , largest=False)
 
-        # selected_indices = multiple_margin(self, probs, n_instances)
+        selected_indices = multiple_margin(self, probs, n_instances)
         # selected_indices = test11(self, probs, n_instances)
         # selected_indices = random_sampling(self, probs, n_instances)
         # selected_indices = CVIRS_sampling(self,  probs, n_instances)
-        selected_indices = test15(self, probs, n_instances)
+        # selected_indices = test13(self, probs, n_instances)
 
         # Get the corresponding instances and labels
         new_training_data = self.pool_dataset.x[selected_indices]
