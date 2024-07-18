@@ -9,11 +9,11 @@ def get_args():
                         help="Name of Dataset")
     # parser.add_argument('--data_name', type=str, default="bibTex",
     #                     help="Name of Dataset")
-    parser.add_argument('--train', type=float, default=0.005,  # 0.05
+    parser.add_argument('--train', type=float, default=0.005,
                         help="train size")  # 0.01
-    parser.add_argument('--pool', type=float, default=0.7,  # 0.75
+    parser.add_argument('--pool', type=float, default=0.745,
                         help="pool size")
-    parser.add_argument('--test', type=float, default=0.2,
+    parser.add_argument('--test', type=float, default=0.25,
                         help="test size")
 
     # model settings
@@ -32,8 +32,8 @@ def get_args():
     parser.add_argument('--pretrain_epochs', type=int, default=60, help="Number of weights pretraining epochs")
 
     # active learning setting
-    parser.add_argument('--active_rounds', type=int, default=10, help="rounds of active learning")
-    parser.add_argument('--active_instances', type=int, default=100, help="Number of instances for each active "  # 30
+    parser.add_argument('--active_rounds', type=int, default=1, help="rounds of active learning") #10
+    parser.add_argument('--active_instances', type=int, default=600, help="Number of instances for each active "  # 600
                                                                           "learning round")
     parser.add_argument('--active_epochs', type=int, default=80, help="number of active learning epochs")
     parser.add_argument('--active_batch_size', type=int, default=30, help="number of active learning epochs")

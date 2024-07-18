@@ -8,7 +8,7 @@ from torch.utils.data import Dataset, DataLoader
 import numpy as np
 import torch
 from config import get_args
-from loss import ml_nn_loss2
+from loss import ml_nn_loss2, ml_nn_loss1, ml_nn_loss
 from util import *
 from architecture import *
 from data import get_data, MyDataset
@@ -41,6 +41,7 @@ class ActiveLearning:
 
     def select_instances(self, model, n_instances):
         # Calculate the entropy of predictions for all instances in the pool dataset
+
         with torch.no_grad():
             model = model.cpu()
             logits = model(self.pool_dataset.x.cpu())
@@ -48,19 +49,22 @@ class ActiveLearning:
             probs = torch.sigmoid(logits)  # Using sigmoid instead of softmax
             # probs = F.softmax(logits, dim=1)
 
-            # confidences, _ = torch.max(probs, dim=1)
-        #     least_confidence = 1 - confidences  # Confidence is inversely related to uncertainty
-        # _, selected_indices = torch.topk(least_confidence, n_instances)
+        # # confidence
+        #     temp1 = torch.square(probs.data - 0.5)
+        #     temp2 = torch.sum(temp1, dim=1)
+        #     # confidences, _ = torch.max(probs, dim=1)
+        #     # least_confidence = 1 - confidences  # Confidence is inversely related to uncertainty
+        # _, selected_indices = torch.topk(temp2, n_instances, largest=False)
 
         #     # entropy select
         #     entropy = -torch.sum(probs * torch.log(probs), dim=1)
         # _, selected_indices = torch.topk(entropy, n_instances)  # , largest=False)
 
-        selected_indices = multiple_margin(self, probs, n_instances)
+        # selected_indices = multiple_margin(self, probs, n_instances)
         # selected_indices = test11(self, probs, n_instances)
-        # selected_indices = random_sampling(self, probs, n_instances)
+        selected_indices = random_sampling(self, probs, n_instances)
         # selected_indices = CVIRS_sampling(self,  probs, n_instances)
-        # selected_indices = test13(self, probs, n_instances)
+        # selected_indices = test15(self, probs, n_instances)
 
         # Get the corresponding instances and labels
         new_training_data = self.pool_dataset.x[selected_indices]

@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from sklearn.metrics.pairwise import rbf_kernel as RBF
+from sklearn.metrics.pairwise import rbf_kernel as RBF, cosine_similarity
 from sklearn.cluster import KMeans
 import random
 import time
@@ -13,6 +13,103 @@ import math
 from sklearn.metrics import jaccard_score
 from scipy import stats
 
+class dpmeans:
+
+    def __init__(self, X):
+        # Initialize parameters for DP means
+
+        self.K = 1
+        self.K_init = 10
+        self.d = X.shape[1]
+        self.z = np.mod(np.random.permutation(X.shape[0]), self.K) + 1
+        self.mu = np.random.standard_normal((self.K, self.d))
+        self.sigma = 1
+        self.nk = np.zeros(self.K)
+        self.pik = np.ones(self.K) / self.K
+
+        # init mu
+        self.mu = np.array([np.mean(X, 0)])
+
+        # init lambda
+        self.Lambda = self.kpp_init(X, self.K_init)
+
+        self.max_iter = 100
+        self.obj = np.zeros(self.max_iter)
+        self.em_time = np.zeros(self.max_iter)
+
+    def kpp_init(self, X, k):
+        # k++ init
+        # lambda is max distance to k++ means
+
+        [n, d] = np.shape(X)
+        mu = np.zeros((k, d))
+        dist = np.inf * np.ones(n)
+
+        mu[0, :] = X[np.ceil(np.random.rand() * n - 1).astype(int), :]
+        for i in range(1, k):
+            D = X - np.tile(mu[i - 1, :], (n, 1))
+            dist = np.minimum(dist, np.sum(D * D, 1))
+            idx = np.where(np.random.rand() < np.cumsum(dist / float(sum(dist))))
+            mu[i, :] = X[idx[0][0], :]
+            Lambda = np.max(dist)
+
+        return Lambda
+
+    def fit(self, X):
+
+        obj_tol = 1e-3
+        max_iter = self.max_iter
+        [n, d] = np.shape(X)
+
+        obj = np.zeros(max_iter)
+        em_time = np.zeros(max_iter)
+        print('running dpmeans...')
+
+        for iter in range(max_iter):
+            tic = time.time()
+            dist = np.zeros((n, self.K))
+
+            # assignment step
+            for kk in range(self.K):
+                Xm = X - np.tile(self.mu[kk, :], (n, 1))
+                dist[:, kk] = np.sum(Xm * Xm, 1)
+
+            # update labels
+            dmin = np.min(dist, 1)
+            self.z = np.argmin(dist, 1)
+            idx = np.where(dmin > self.Lambda)
+
+            if (np.size(idx) > 0):
+                self.K = self.K + 1
+                self.z[idx[0]] = self.K - 1  # cluster labels in [0,...,K-1]
+                self.mu = np.vstack([self.mu, np.mean(X[idx[0], :], 0)])
+                Xm = X - np.tile(self.mu[self.K - 1, :], (n, 1))
+                dist = np.hstack([dist, np.array([np.sum(Xm * Xm, 1)]).T])
+
+            # update step
+            self.nk = np.zeros(self.K)
+            for kk in range(self.K):
+                self.nk[kk] = self.z.tolist().count(kk)
+                idx = np.where(self.z == kk)
+                self.mu[kk, :] = np.mean(X[idx[0], :], 0)
+
+            self.pik = self.nk / float(np.sum(self.nk))
+
+            # compute objective
+            for kk in range(self.K):
+                idx = np.where(self.z == kk)
+                obj[iter] = obj[iter] + np.sum(dist[idx[0], kk], 0)
+            obj[iter] = obj[iter] + self.Lambda * self.K
+
+            # check convergence
+            if (iter > 0 and np.abs(obj[iter] - obj[iter - 1]) < obj_tol * obj[iter]):
+                print('converged in %d iterations\n' % iter)
+                break
+            em_time[iter] = time.time() - tic
+        # end for
+        self.obj = obj
+        self.em_time = em_time
+        return self.z, obj, em_time
 
 def random_sampling(self, probs, n_instances):
     # random select
@@ -108,6 +205,8 @@ def test11(self, probs, n_instances):
     list1=np.array(list)
     print("cc")
     return list1
+
+
 def test13(self, probs, n_instances):
 
     ctraining = self.train_origin
@@ -165,6 +264,8 @@ def test13(self, probs, n_instances):
     list1=np.array(list)
     print("cc")
     return list1
+
+
 def test15(self, probs, n_instances):
 
     ctraining = self.train_origin
@@ -174,7 +275,7 @@ def test15(self, probs, n_instances):
     cpredit1 = np.array(cpredit)
     cpredit2 = cpredit1 * 10
 
-    cresult = RBF(cpredit2, ctraining2)
+    cresult = cosine_similarity(cpredit2, ctraining2)
     cresult2 = np.max(cresult, axis=1)
     cresult3 = torch.tensor(cresult2)
     a = cresult3.size()
@@ -222,6 +323,52 @@ def test15(self, probs, n_instances):
     list1=np.array(list)
     print("cc")
     return list1
+
+
+def test17(self, probs, n_instances): #label kmeans and average
+    temp1 = torch.square(probs.data - 0.5)
+    temp2 = torch.sum(temp1, dim=0)
+    temp31 = torch.sum(temp1, dim=1)
+    a = temp31.size()
+    a = a[0]
+    temp21 = temp2 / a
+    testmin = torch.argmin(temp21)
+    print(f"Min index in pooling {testmin}and value {temp2[testmin]}")
+    temp22=temp21.cpu()
+    temp23 = temp22.numpy()
+
+    a1 = np.array(temp22)
+    a22 = np.expand_dims(a1, 0)
+    a2 = a22.T
+    dp = dpmeans(a2)
+    dp.fit(a2)
+    k = dp.K
+    print(f"K means size {k}")
+    kmeans = KMeans(n_clusters=k, random_state=0, n_init="auto").fit(a2)
+    cc1 = kmeans.cluster_centers_
+    labels = kmeans.labels_
+    labelmin = np.argmin(cc1)
+    index2 = np.where(labels == labelmin)[0]
+    print(f"K means index {index2} and value {temp21[index2]}")
+    size11 = index2.size
+    value11, cresult11 = torch.topk(temp21, size11, largest=False)
+
+    list2=[]
+    for i in range(size11):
+        tempindex11=cresult11[i]
+        value, row1 = torch.sort(temp1[:, tempindex11], dim=0)
+        if row1[0] not in list2:
+            tempindex12=row1[0].cpu()
+            tempindex13 = tempindex12.numpy()
+            list2.append(tempindex13)
+        if len(list2) >= n_instances:
+            print("selection breaking ")
+            break
+        if i >= n_instances:
+            i = 0
+    list3 = np.array(list2)
+    print(f"return index {list3}")
+    return list3
 
 # Category Vector Inconsistency and Ranking of Scores(CVIRS)
 # From paper "Effective active learning strategy for multi-label learning"
@@ -316,5 +463,4 @@ def CVIRS_sampling(self, pred_scores, n_instances):
     _, selected_indices = torch.topk(result, n_instances, largest=False)
     # _, selected_indices = torch.topk(margin, n_instances, largest=True)
     return selected_indices
-
 

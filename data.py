@@ -171,7 +171,7 @@ def preprocess_data(data):
     data_tensor /= 255.0
 
     # Resize the images to match the expected input size of ResNet-18 (224x224)
-    resize_transform = transforms.Resize((224, 224))
+    resize_transform = transforms.Resize((1, 224))
     data_resized = torch.stack([resize_transform(x) for x in data_tensor])
 
     return data_resized

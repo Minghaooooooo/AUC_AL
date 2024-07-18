@@ -2,3 +2,4 @@
 #conda activate base
 
 python D:/Pycharm Project/AUC_AL/main.py --seed 25 --pretrain_epochs 50 --fname 'runtest'
+python D:/Pycharm Project/AUC_AL/main.py --seed 25 --pretrain_epochs 10 --fname 'runtest'
